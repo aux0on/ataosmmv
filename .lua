@@ -31,7 +31,7 @@ local RootMaid = Maid.new()
 
 local shared = odh_shared_plugins
 local _game = shared.game_name
-if _game == "Murder Mystery 2" or _game == "Murder Mystery Modded" then
+if _game == "Murder Mystery 2" then
 
 local Services = {
     Players = game:GetService("Players"),
