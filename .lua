@@ -31,7 +31,7 @@ local RootMaid = Maid.new()
 
 local shared = odh_shared_plugins
 local _game = shared.game_name
-if _game == "Murder Mystery 2" then
+if _game == "Murder Mystery 2" or _game == "Murder Mystery Modded" then
 
 local Services = {
     Players = game:GetService("Players"),
@@ -3754,7 +3754,7 @@ do
         grabGun()
     end)
 end
-    
+
 local creditsSection = shared.AddSection("Credits")
 creditsSection:AddParagraph("@lzzzx", "Made this plugin, if you have requests feel free to ask.") end 
 
