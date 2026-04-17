@@ -30,8 +30,6 @@ function Maid:Destroy() self:DoCleaning() end
 local RootMaid = Maid.new()
 
 local shared = odh_shared_plugins
-local _game = shared.game_name
-if _game == "Murder Mystery 2" or _game == "Murder Mystery Modded" then
 
 local Services = {
     Players = game:GetService("Players"),
@@ -55,31 +53,6 @@ local function GetSafeGuiRoot()
         return result
     end
     return Services.CoreGui
-end
-
-local function ApplyCustomStyle(button)
-    button.Font = Enum.Font.SourceSansLight
-    button.BackgroundTransparency = 0.3
-    
-    local stroke = Instance.new("UIStroke", button)
-    stroke.Thickness = 2.5
-    stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-    
-    local gradient = Instance.new("UIGradient", stroke)
-    gradient.Color = ColorSequence.new{
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 85, 255)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 0, 0))
-    }
-    gradient.Rotation = 45
-    
-    button.MouseButton1Click:Connect(function()
-        local sfx = Instance.new("Sound", button)
-        sfx.Name = "reina ins't gay :|||"
-        sfx.SoundId = "rbxassetid://12221967"
-        sfx.Volume = 1
-        sfx:Play()
-        Services.Debris:AddItem(sfx, 1)
-    end)
 end
 
 local hiddenGuiParent = GetSafeGuiRoot()
@@ -214,6 +187,15 @@ songDropdown = radioSection:AddDropdown("Saved Songs", getSongNames(), function(
             PlaySong:FireServer("https://www.roblox.com/asset/?id=" .. song.id)
             break
         end
+    end
+end)
+radioSection:AddButton("Replay Audio", function()
+    if lastSelectedSong then
+        PlaySong:FireServer("https://www.roblox.com/asset/?id=" .. lastSelectedSong.id)
+        task.wait(0.1)
+        PlaySong:FireServer("https://www.roblox.com/asset/?id=" .. lastSelectedSong.id)
+    else
+        shared.Notify("No audio selected!", 2)
     end
 end)
 radioSection:AddTextBox("Add Audio ID", function(text)
@@ -641,61 +623,6 @@ do
     TrickshotMaid:GiveTask(LocalPlayer.CharacterAdded:Connect(function(c) setupSpin(c) end))
     if LocalPlayer.Character then setupSpin(LocalPlayer.Character) end
     RootMaid:GiveTask(function() if TrickshotMaid then TrickshotMaid:DoCleaning() end end)
-end
-
-do
-    local duelSection = shared.AddSection("Dual Effect")
-    duelSection:AddLabel("Must Own Dual Effect + Selected Effect")
-    local dualEnabled = false
-    local DualEffectMaid = nil
-    local selectedDualEffect = "Electric"
-    
-    duelSection:AddDropdown("Select Second Effect", {
-        "Vampiric2024", "SynthEffect2025", "Sunbeams2024", "Snowstorm2024", "Retro2025", "Radioactive", "Musical",
-        "Heatwave2025", "Heartify", "Gifts2024", "Ghosts2024", "FlamingoEffect2025", "Burn", "Cursed2024",
-        "Starry2024", "Bats2024", "Aquatic2025", "Jellyfish2024", "Carrots2025", "BlueFire", "Rainbows2025",
-        "Elitify", "Electric", "Ghostify"
-    }, function(s) selectedDualEffect = s end)
-    
-    duelSection:AddToggle("Auto Equip Dual Effect", function(e)
-        if DualEffectMaid then DualEffectMaid:DoCleaning() DualEffectMaid = nil end
-        dualEnabled = e
-        if e then
-            DualEffectMaid = Maid.new()
-            DualEffectMaid:GiveTask(RoleSelect.OnClientEvent:Connect(function(...)
-                local args = {...}
-                if args[1] == "Murderer" then
-                    Services.ReplicatedStorage.Remotes.Inventory.Equip:FireServer("Dual", "Effects")
-                    task.delay(18, function()
-                        if dualEnabled then
-                            Services.ReplicatedStorage.Remotes.Inventory.Equip:FireServer(selectedDualEffect, "Effects")
-                        end
-                    end)
-                end
-            end))
-        end
-    end)
-    RootMaid:GiveTask(function() if DualEffectMaid then DualEffectMaid:DoCleaning() end end)
-end
-
-do
-    local tradeSection = shared.AddSection("Disable Trading")
-    tradeSection:AddLabel("Turn Off & Rejoin To Trade Again")
-    local TradeMaid = nil
-    
-    tradeSection:AddToggle("Decline Trades", function(t)
-        if TradeMaid then TradeMaid:DoCleaning() TradeMaid = nil end
-        if t then
-            TradeMaid = Maid.new()
-            Services.ReplicatedStorage.Trade.SendRequest.OnClientInvoke = function()
-                Services.ReplicatedStorage.Trade.DeclineRequest:FireServer()
-            end
-            TradeMaid:GiveTask(function()
-                Services.ReplicatedStorage.Trade.SendRequest.OnClientInvoke = nil
-            end)
-        end
-    end)
-    RootMaid:GiveTask(function() if TradeMaid then TradeMaid:DoCleaning() end end)
 end
 
 do
@@ -2733,11 +2660,13 @@ end
 do
     local Players = game:GetService("Players")
     local plr = Players.LocalPlayer
-    
+
     local feAnimSection = shared.AddSection("FE Animations")
     local FEAnimMaid = Maid.new()
     RootMaid:GiveTask(FEAnimMaid)
-    
+
+    local feAnimEnabled = false
+
     local animState = {
         all = "Default",
         idle = "Default",
@@ -2747,455 +2676,487 @@ do
         climb = "Default",
         fall = "Default"
     }
-    
+
     local originalAnims = {}
-    
+
     local animPresets = {
         ["Default"] = nil,
+
+        ["OG Rthro Run"] = {
+            run = "http://www.roblox.com/asset/?id=9801814462"
+        },
+
         ["Vampire"] = {
             idle1 = "http://www.roblox.com/asset/?id=1083445855",
             idle2 = "http://www.roblox.com/asset/?id=1083450166",
-            walk = "http://www.roblox.com/asset/?id=1083473930",
-            run = "http://www.roblox.com/asset/?id=1083462077",
-            jump = "http://www.roblox.com/asset/?id=1083455352",
+            walk  = "http://www.roblox.com/asset/?id=1083473930",
+            run   = "http://www.roblox.com/asset/?id=1083462077",
+            jump  = "http://www.roblox.com/asset/?id=1083455352",
             climb = "http://www.roblox.com/asset/?id=1083439238",
-            fall = "http://www.roblox.com/asset/?id=1083443587"
+            fall  = "http://www.roblox.com/asset/?id=1083443587"
         },
         ["Hero"] = {
             idle1 = "http://www.roblox.com/asset/?id=616111295",
             idle2 = "http://www.roblox.com/asset/?id=616113536",
-            walk = "http://www.roblox.com/asset/?id=616122287",
-            run = "http://www.roblox.com/asset/?id=616117076",
-            jump = "http://www.roblox.com/asset/?id=616115533",
+            walk  = "http://www.roblox.com/asset/?id=616122287",
+            run   = "http://www.roblox.com/asset/?id=616117076",
+            jump  = "http://www.roblox.com/asset/?id=616115533",
             climb = "http://www.roblox.com/asset/?id=616104706",
-            fall = "http://www.roblox.com/asset/?id=616108001"
+            fall  = "http://www.roblox.com/asset/?id=616108001"
         },
         ["Zombie Classic"] = {
             idle1 = "http://www.roblox.com/asset/?id=616158929",
             idle2 = "http://www.roblox.com/asset/?id=616160636",
-            walk = "http://www.roblox.com/asset/?id=616168032",
-            run = "http://www.roblox.com/asset/?id=616163682",
-            jump = "http://www.roblox.com/asset/?id=616161997",
+            walk  = "http://www.roblox.com/asset/?id=616168032",
+            run   = "http://www.roblox.com/asset/?id=616163682",
+            jump  = "http://www.roblox.com/asset/?id=616161997",
             climb = "http://www.roblox.com/asset/?id=616156119",
-            fall = "http://www.roblox.com/asset/?id=616157476"
+            fall  = "http://www.roblox.com/asset/?id=616157476"
         },
         ["Mage"] = {
             idle1 = "http://www.roblox.com/asset/?id=707742142",
             idle2 = "http://www.roblox.com/asset/?id=707855907",
-            walk = "http://www.roblox.com/asset/?id=707897309",
-            run = "http://www.roblox.com/asset/?id=707861613",
-            jump = "http://www.roblox.com/asset/?id=707853694",
+            walk  = "http://www.roblox.com/asset/?id=707897309",
+            run   = "http://www.roblox.com/asset/?id=707861613",
+            jump  = "http://www.roblox.com/asset/?id=707853694",
             climb = "http://www.roblox.com/asset/?id=707826056",
-            fall = "http://www.roblox.com/asset/?id=707829716"
+            fall  = "http://www.roblox.com/asset/?id=707829716"
         },
         ["Ghost"] = {
             idle1 = "http://www.roblox.com/asset/?id=616006778",
             idle2 = "http://www.roblox.com/asset/?id=616008087",
-            walk = "http://www.roblox.com/asset/?id=616010382",
-            run = "http://www.roblox.com/asset/?id=616013216",
-            jump = "http://www.roblox.com/asset/?id=616008936",
+            walk  = "http://www.roblox.com/asset/?id=616010382",
+            run   = "http://www.roblox.com/asset/?id=616013216",
+            jump  = "http://www.roblox.com/asset/?id=616008936",
             climb = "http://www.roblox.com/asset/?id=616003713",
-            fall = "http://www.roblox.com/asset/?id=616005863"
+            fall  = "http://www.roblox.com/asset/?id=616005863"
         },
         ["Elder"] = {
             idle1 = "http://www.roblox.com/asset/?id=845397899",
             idle2 = "http://www.roblox.com/asset/?id=845400520",
-            walk = "http://www.roblox.com/asset/?id=845403856",
-            run = "http://www.roblox.com/asset/?id=845386501",
-            jump = "http://www.roblox.com/asset/?id=845398858",
+            walk  = "http://www.roblox.com/asset/?id=845403856",
+            run   = "http://www.roblox.com/asset/?id=845386501",
+            jump  = "http://www.roblox.com/asset/?id=845398858",
             climb = "http://www.roblox.com/asset/?id=845392038",
-            fall = "http://www.roblox.com/asset/?id=845396048"
+            fall  = "http://www.roblox.com/asset/?id=845396048"
         },
         ["Levitation"] = {
             idle1 = "http://www.roblox.com/asset/?id=616006778",
             idle2 = "http://www.roblox.com/asset/?id=616008087",
-            walk = "http://www.roblox.com/asset/?id=616013216",
-            run = "http://www.roblox.com/asset/?id=616010382",
-            jump = "http://www.roblox.com/asset/?id=616008936",
+            walk  = "http://www.roblox.com/asset/?id=616013216",
+            run   = "http://www.roblox.com/asset/?id=616010382",
+            jump  = "http://www.roblox.com/asset/?id=616008936",
             climb = "http://www.roblox.com/asset/?id=616003713",
-            fall = "http://www.roblox.com/asset/?id=616005863"
+            fall  = "http://www.roblox.com/asset/?id=616005863"
         },
         ["Astronaut"] = {
             idle1 = "http://www.roblox.com/asset/?id=891621366",
             idle2 = "http://www.roblox.com/asset/?id=891633237",
-            walk = "http://www.roblox.com/asset/?id=891667138",
-            run = "http://www.roblox.com/asset/?id=891636393",
-            jump = "http://www.roblox.com/asset/?id=891627522",
+            walk  = "http://www.roblox.com/asset/?id=891667138",
+            run   = "http://www.roblox.com/asset/?id=891636393",
+            jump  = "http://www.roblox.com/asset/?id=891627522",
             climb = "http://www.roblox.com/asset/?id=891609353",
-            fall = "http://www.roblox.com/asset/?id=891617961"
+            fall  = "http://www.roblox.com/asset/?id=891617961"
         },
         ["Ninja"] = {
             idle1 = "http://www.roblox.com/asset/?id=656117400",
             idle2 = "http://www.roblox.com/asset/?id=656118341",
-            walk = "http://www.roblox.com/asset/?id=656121766",
-            run = "http://www.roblox.com/asset/?id=656118852",
-            jump = "http://www.roblox.com/asset/?id=656117878",
+            walk  = "http://www.roblox.com/asset/?id=656121766",
+            run   = "http://www.roblox.com/asset/?id=656118852",
+            jump  = "http://www.roblox.com/asset/?id=656117878",
             climb = "http://www.roblox.com/asset/?id=656114359",
-            fall = "http://www.roblox.com/asset/?id=656115606"
+            fall  = "http://www.roblox.com/asset/?id=656115606"
         },
         ["Werewolf"] = {
             idle1 = "http://www.roblox.com/asset/?id=1083195517",
             idle2 = "http://www.roblox.com/asset/?id=1083214717",
-            walk = "http://www.roblox.com/asset/?id=1083178339",
-            run = "http://www.roblox.com/asset/?id=1083216690",
-            jump = "http://www.roblox.com/asset/?id=1083218792",
+            walk  = "http://www.roblox.com/asset/?id=1083178339",
+            run   = "http://www.roblox.com/asset/?id=1083216690",
+            jump  = "http://www.roblox.com/asset/?id=1083218792",
             climb = "http://www.roblox.com/asset/?id=1083182000",
-            fall = "http://www.roblox.com/asset/?id=1083189019"
+            fall  = "http://www.roblox.com/asset/?id=1083189019"
         },
         ["Cartoon"] = {
             idle1 = "http://www.roblox.com/asset/?id=742637544",
             idle2 = "http://www.roblox.com/asset/?id=742638445",
-            walk = "http://www.roblox.com/asset/?id=742640026",
-            run = "http://www.roblox.com/asset/?id=742638842",
-            jump = "http://www.roblox.com/asset/?id=742637942",
+            walk  = "http://www.roblox.com/asset/?id=742640026",
+            run   = "http://www.roblox.com/asset/?id=742638842",
+            jump  = "http://www.roblox.com/asset/?id=742637942",
             climb = "http://www.roblox.com/asset/?id=742636889",
-            fall = "http://www.roblox.com/asset/?id=742637151"
+            fall  = "http://www.roblox.com/asset/?id=742637151"
         },
         ["Pirate"] = {
             idle1 = "http://www.roblox.com/asset/?id=750781874",
             idle2 = "http://www.roblox.com/asset/?id=750782770",
-            walk = "http://www.roblox.com/asset/?id=750785693",
-            run = "http://www.roblox.com/asset/?id=750783738",
-            jump = "http://www.roblox.com/asset/?id=750782230",
+            walk  = "http://www.roblox.com/asset/?id=750785693",
+            run   = "http://www.roblox.com/asset/?id=750783738",
+            jump  = "http://www.roblox.com/asset/?id=750782230",
             climb = "http://www.roblox.com/asset/?id=750779899",
-            fall = "http://www.roblox.com/asset/?id=750780242"
+            fall  = "http://www.roblox.com/asset/?id=750780242"
         },
         ["Sneaky"] = {
             idle1 = "http://www.roblox.com/asset/?id=1132473842",
             idle2 = "http://www.roblox.com/asset/?id=1132477671",
-            walk = "http://www.roblox.com/asset/?id=1132510133",
-            run = "http://www.roblox.com/asset/?id=1132494274",
-            jump = "http://www.roblox.com/asset/?id=1132489853",
+            walk  = "http://www.roblox.com/asset/?id=1132510133",
+            run   = "http://www.roblox.com/asset/?id=1132494274",
+            jump  = "http://www.roblox.com/asset/?id=1132489853",
             climb = "http://www.roblox.com/asset/?id=1132461372",
-            fall = "http://www.roblox.com/asset/?id=1132469004"
+            fall  = "http://www.roblox.com/asset/?id=1132469004"
         },
         ["Toy"] = {
             idle1 = "http://www.roblox.com/asset/?id=782841498",
             idle2 = "http://www.roblox.com/asset/?id=782845736",
-            walk = "http://www.roblox.com/asset/?id=782843345",
-            run = "http://www.roblox.com/asset/?id=782842708",
-            jump = "http://www.roblox.com/asset/?id=782847020",
+            walk  = "http://www.roblox.com/asset/?id=782843345",
+            run   = "http://www.roblox.com/asset/?id=782842708",
+            jump  = "http://www.roblox.com/asset/?id=782847020",
             climb = "http://www.roblox.com/asset/?id=782843869",
-            fall = "http://www.roblox.com/asset/?id=782846423"
+            fall  = "http://www.roblox.com/asset/?id=782846423"
         },
         ["Knight"] = {
             idle1 = "http://www.roblox.com/asset/?id=657595757",
             idle2 = "http://www.roblox.com/asset/?id=657568135",
-            walk = "http://www.roblox.com/asset/?id=657552124",
-            run = "http://www.roblox.com/asset/?id=657564596",
-            jump = "http://www.roblox.com/asset/?id=658409194",
+            walk  = "http://www.roblox.com/asset/?id=657552124",
+            run   = "http://www.roblox.com/asset/?id=657564596",
+            jump  = "http://www.roblox.com/asset/?id=658409194",
             climb = "http://www.roblox.com/asset/?id=658360781",
-            fall = "http://www.roblox.com/asset/?id=657600338"
+            fall  = "http://www.roblox.com/asset/?id=657600338"
         },
         ["Confident"] = {
             idle1 = "http://www.roblox.com/asset/?id=1069977950",
             idle2 = "http://www.roblox.com/asset/?id=1069987858",
-            walk = "http://www.roblox.com/asset/?id=1070017263",
-            run = "http://www.roblox.com/asset/?id=1070001516",
-            jump = "http://www.roblox.com/asset/?id=1069984524",
+            walk  = "http://www.roblox.com/asset/?id=1070017263",
+            run   = "http://www.roblox.com/asset/?id=1070001516",
+            jump  = "http://www.roblox.com/asset/?id=1069984524",
             climb = "http://www.roblox.com/asset/?id=1069946257",
-            fall = "http://www.roblox.com/asset/?id=1069973677"
+            fall  = "http://www.roblox.com/asset/?id=1069973677"
         },
         ["Popstar"] = {
             idle1 = "http://www.roblox.com/asset/?id=1212900985",
             idle2 = "http://www.roblox.com/asset/?id=1212900985",
-            walk = "http://www.roblox.com/asset/?id=1212980338",
-            run = "http://www.roblox.com/asset/?id=1212980348",
-            jump = "http://www.roblox.com/asset/?id=1212954642",
+            walk  = "http://www.roblox.com/asset/?id=1212980338",
+            run   = "http://www.roblox.com/asset/?id=1212980348",
+            jump  = "http://www.roblox.com/asset/?id=1212954642",
             climb = "http://www.roblox.com/asset/?id=1213044953",
-            fall = "http://www.roblox.com/asset/?id=1212900995"
+            fall  = "http://www.roblox.com/asset/?id=1212900995"
         },
         ["Princess"] = {
             idle1 = "http://www.roblox.com/asset/?id=941003647",
             idle2 = "http://www.roblox.com/asset/?id=941013098",
-            walk = "http://www.roblox.com/asset/?id=941028902",
-            run = "http://www.roblox.com/asset/?id=941015281",
-            jump = "http://www.roblox.com/asset/?id=941008832",
+            walk  = "http://www.roblox.com/asset/?id=941028902",
+            run   = "http://www.roblox.com/asset/?id=941015281",
+            jump  = "http://www.roblox.com/asset/?id=941008832",
             climb = "http://www.roblox.com/asset/?id=940996062",
-            fall = "http://www.roblox.com/asset/?id=941000007"
+            fall  = "http://www.roblox.com/asset/?id=941000007"
         },
         ["Cowboy"] = {
             idle1 = "http://www.roblox.com/asset/?id=1014390418",
             idle2 = "http://www.roblox.com/asset/?id=1014398616",
-            walk = "http://www.roblox.com/asset/?id=1014421541",
-            run = "http://www.roblox.com/asset/?id=1014401683",
-            jump = "http://www.roblox.com/asset/?id=1014394726",
+            walk  = "http://www.roblox.com/asset/?id=1014421541",
+            run   = "http://www.roblox.com/asset/?id=1014401683",
+            jump  = "http://www.roblox.com/asset/?id=1014394726",
             climb = "http://www.roblox.com/asset/?id=1014380606",
-            fall = "http://www.roblox.com/asset/?id=1014384571"
+            fall  = "http://www.roblox.com/asset/?id=1014384571"
         },
         ["Patrol"] = {
             idle1 = "http://www.roblox.com/asset/?id=1149612882",
             idle2 = "http://www.roblox.com/asset/?id=1150842221",
-            walk = "http://www.roblox.com/asset/?id=1151231493",
-            run = "http://www.roblox.com/asset/?id=1150967949",
-            jump = "http://www.roblox.com/asset/?id=1150944216",
+            walk  = "http://www.roblox.com/asset/?id=1151231493",
+            run   = "http://www.roblox.com/asset/?id=1150967949",
+            jump  = "http://www.roblox.com/asset/?id=1150944216",
             climb = "http://www.roblox.com/asset/?id=1148811837",
-            fall = "http://www.roblox.com/asset/?id=1148863382"
+            fall  = "http://www.roblox.com/asset/?id=1148863382"
         },
         ["Zombie FE"] = {
             idle1 = "http://www.roblox.com/asset/?id=3489171152",
             idle2 = "http://www.roblox.com/asset/?id=3489171152",
-            walk = "http://www.roblox.com/asset/?id=3489174223",
-            run = "http://www.roblox.com/asset/?id=3489173414",
-            jump = "http://www.roblox.com/asset/?id=616161997",
+            walk  = "http://www.roblox.com/asset/?id=3489174223",
+            run   = "http://www.roblox.com/asset/?id=3489173414",
+            jump  = "http://www.roblox.com/asset/?id=616161997",
             climb = "http://www.roblox.com/asset/?id=616156119",
-            fall = "http://www.roblox.com/asset/?id=616157476"
-        }
+            fall  = "http://www.roblox.com/asset/?id=616157476"
+        },
+        ["Catwalk Glam"] = {
+            idle1 = "http://www.roblox.com/asset/?id=133806214992291",
+            idle2 = "http://www.roblox.com/asset/?id=133806214992291",
+            walk  = "http://www.roblox.com/asset/?id=109168724482748",
+            run   = "http://www.roblox.com/asset/?id=81024476153754",
+            jump  = "http://www.roblox.com/asset/?id=116936326516985",
+            climb = "http://www.roblox.com/asset/?id=119377220967554",
+            fall  = "http://www.roblox.com/asset/?id=92294537340807"
+        },
+        ["Amazon Unboxed"] = {
+            idle1 = "http://www.roblox.com/asset/?id=98281136301627",
+            idle2 = "http://www.roblox.com/asset/?id=98281136301627",
+            walk  = "http://www.roblox.com/asset/?id=90478085024465",
+            run   = "http://www.roblox.com/asset/?id=134824450619865",
+            jump  = "http://www.roblox.com/asset/?id=121454505477205",
+            climb = "http://www.roblox.com/asset/?id=121145883950231",
+            fall  = "http://www.roblox.com/asset/?id=94788218468396"
+        },
+		["Glow Motion"] = {
+            idle1 = "https://www.roblox.com/asset/?id=137764781910579",
+            idle2 = "https://www.roblox.com/asset/?id=137764781910579",
+            walk  = "http://www.roblox.com/asset/?id=85809016093530",
+            run   = "http://www.roblox.com/asset/?id=101925097435036",
+            jump  = "http://www.roblox.com/asset/?id=74159004634379",
+            climb = "http://www.roblox.com/asset/?id=108236155509584",
+            fall  = "https://www.roblox.com/asset/?id=98070939608691"
+        },
+		["Bubbly"] = {
+            idle1 = "https://www.roblox.com/asset/?id=10921054344",
+            idle2 = "https://www.roblox.com/asset/?id=10921054344",
+            walk  = "http://www.roblox.com/asset/?id=10980888364",
+            run   = "http://www.roblox.com/asset/?id=10921057244",
+            jump  = "http://www.roblox.com/asset/?id=10921062673",
+            climb = "http://www.roblox.com/asset/?id=10921053544",
+            fall  = "https://www.roblox.com/asset/?id=10921061530"
+        },
+		["Adidas Comm"] = {
+            idle1 = "https://www.roblox.com/asset/?id=122257458498464",
+            idle2 = "https://www.roblox.com/asset/?id=122257458498464",
+            walk  = "http://www.roblox.com/asset/?id=122150855457006",
+            run   = "http://www.roblox.com/asset/?id=82598234841035",
+            jump  = "http://www.roblox.com/asset/?id=75290611992385",
+            climb = "http://www.roblox.com/asset/?id=88763136693023",
+            fall  = "https://www.roblox.com/asset/?id=98600215928904"
+		},
+	    ["KATSEYE"] = {
+            idle1 = "https://www.roblox.com/asset/?id=108187809145790",
+            idle2 = "https://www.roblox.com/asset/?id=108187809145790",
+            walk  = "http://www.roblox.com/asset/?id=99182913548783",
+            run   = "http://www.roblox.com/asset/?id=73117360545482",
+            jump  = "http://www.roblox.com/asset/?id=103632305262747",
+            climb = "http://www.roblox.com/asset/?id=106213237973858",
+            fall  = "https://www.roblox.com/asset/?id=127802717128367"
+		},
+	    ["Wicked Popular"] = {
+            idle1 = "https://www.roblox.com/asset/?id=118832222982049",
+            idle2 = "https://www.roblox.com/asset/?id=118832222982049",
+            walk  = "http://www.roblox.com/asset/?id=92072849924640",
+            run   = "http://www.roblox.com/asset/?id=72301599441680",
+            jump  = "http://www.roblox.com/asset/?id=104325245285198",
+            climb = "http://www.roblox.com/asset/?id=131326830509784",
+            fall  = "https://www.roblox.com/asset/?id=121152442762481"
+		},
     }
-    
+
+    local animMap = {
+        idle  = { folder = "idle",  slots = { { child = "Animation1", origKey = "idle1" }, { child = "Animation2", origKey = "idle2" } } },
+        walk  = { folder = "walk",  slots = { { child = "WalkAnim",   origKey = "walk"  } } },
+        run   = { folder = "run",   slots = { { child = "RunAnim",    origKey = "run"   } } },
+        jump  = { folder = "jump",  slots = { { child = "JumpAnim",   origKey = "jump"  } } },
+        climb = { folder = "climb", slots = { { child = "ClimbAnim",  origKey = "climb" } } },
+        fall  = { folder = "fall",  slots = { { child = "FallAnim",   origKey = "fall"  } } },
+    }
+
     local function saveOriginalAnimations(character)
         local Animate = character:FindFirstChild("Animate")
         if not Animate then return end
-        
-        if originalAnims.idle1 then return end
-        
-        if Animate:FindFirstChild("idle") then
-            local anim1 = Animate.idle:FindFirstChild("Animation1")
-            local anim2 = Animate.idle:FindFirstChild("Animation2")
-            if anim1 then originalAnims.idle1 = anim1.AnimationId end
-            if anim2 then originalAnims.idle2 = anim2.AnimationId end
-        end
-        
-        if Animate:FindFirstChild("walk") then
-            local walkAnim = Animate.walk:FindFirstChild("WalkAnim")
-            if walkAnim then originalAnims.walk = walkAnim.AnimationId end
-        end
-        
-        if Animate:FindFirstChild("run") then
-            local runAnim = Animate.run:FindFirstChild("RunAnim")
-            if runAnim then originalAnims.run = runAnim.AnimationId end
-        end
-        
-        if Animate:FindFirstChild("jump") then
-            local jumpAnim = Animate.jump:FindFirstChild("JumpAnim")
-            if jumpAnim then originalAnims.jump = jumpAnim.AnimationId end
-        end
-        
-        if Animate:FindFirstChild("climb") then
-            local climbAnim = Animate.climb:FindFirstChild("ClimbAnim")
-            if climbAnim then originalAnims.climb = climbAnim.AnimationId end
-        end
-        
-        if Animate:FindFirstChild("fall") then
-            local fallAnim = Animate.fall:FindFirstChild("FallAnim")
-            if fallAnim then originalAnims.fall = fallAnim.AnimationId end
+
+        for _, info in pairs(animMap) do
+            local folder = Animate:FindFirstChild(info.folder)
+            if folder then
+                for _, slot in ipairs(info.slots) do
+                    local anim = folder:FindFirstChild(slot.child)
+                    if anim then
+                        originalAnims[slot.origKey] = anim.AnimationId
+                    end
+                end
+            end
         end
     end
-    
+
     local function stopAllAnimations()
         local character = plr.Character
         if not character then return end
-        
         local humanoid = character:FindFirstChildOfClass("Humanoid")
         if not humanoid then return end
-        
         for _, track in pairs(humanoid:GetPlayingAnimationTracks()) do
             track:Stop(0)
         end
     end
-    
-    local function shouldApplyAnimations()
-        if animState.all ~= "Default" then
-            return true
-        end
-        if animState.idle ~= "Default" then return true end
-        if animState.walk ~= "Default" then return true end
-        if animState.run ~= "Default" then return true end
-        if animState.jump ~= "Default" then return true end
-        if animState.climb ~= "Default" then return true end
-        if animState.fall ~= "Default" then return true end
-        return false
-    end
-    
-    local function applyAnimations()
-        if not plr or not plr.Character then 
-            return 
-        end
-        
-        if not shouldApplyAnimations() then
-            return
-        end
-        
+
+    local function restoreDefaultAnimations()
+        if not plr or not plr.Character then return end
         local character = plr.Character
         local Animate = character:FindFirstChild("Animate")
-        
-        if not Animate then
-            return
-        end
-        
-        saveOriginalAnimations(character)
+        if not Animate then return end
+
         stopAllAnimations()
-        
         Animate.Disabled = true
         task.wait(0.1)
-        
-        local function getPresetForType(animType)
-            if animState[animType] ~= "Default" then
-                return animState[animType]
-            end
-            if animState.all ~= "Default" then
-                return animState.all
-            end
-            return "Default"
-        end
-        
-        local idlePreset = getPresetForType("idle")
-        if Animate:FindFirstChild("idle") then
-            local anim1 = Animate.idle:FindFirstChild("Animation1")
-            local anim2 = Animate.idle:FindFirstChild("Animation2")
-            
-            if idlePreset == "Default" then
-                if anim1 and originalAnims.idle1 then anim1.AnimationId = originalAnims.idle1 end
-                if anim2 and originalAnims.idle2 then anim2.AnimationId = originalAnims.idle2 end
-            elseif animPresets[idlePreset] then
-                local preset = animPresets[idlePreset]
-                if anim1 and preset.idle1 then anim1.AnimationId = preset.idle1 end
-                if anim2 and preset.idle2 then anim2.AnimationId = preset.idle2 end
+
+        for _, info in pairs(animMap) do
+            local folder = Animate:FindFirstChild(info.folder)
+            if folder then
+                for _, slot in ipairs(info.slots) do
+                    local anim = folder:FindFirstChild(slot.child)
+                    if anim and originalAnims[slot.origKey] then
+                        anim.AnimationId = originalAnims[slot.origKey]
+                    end
+                end
             end
         end
-        
-        local walkPreset = getPresetForType("walk")
-        if Animate:FindFirstChild("walk") then
-            local walkAnim = Animate.walk:FindFirstChild("WalkAnim")
-            
-            if walkPreset == "Default" then
-                if walkAnim and originalAnims.walk then walkAnim.AnimationId = originalAnims.walk end
-            elseif animPresets[walkPreset] then
-                local preset = animPresets[walkPreset]
-                if walkAnim and preset.walk then walkAnim.AnimationId = preset.walk end
-            end
-        end
-        
-        local runPreset = getPresetForType("run")
-        if Animate:FindFirstChild("run") then
-            local runAnim = Animate.run:FindFirstChild("RunAnim")
-            
-            if runPreset == "Default" then
-                if runAnim and originalAnims.run then runAnim.AnimationId = originalAnims.run end
-            elseif animPresets[runPreset] then
-                local preset = animPresets[runPreset]
-                if runAnim and preset.run then runAnim.AnimationId = preset.run end
-            end
-        end
-        
-        local jumpPreset = getPresetForType("jump")
-        if Animate:FindFirstChild("jump") then
-            local jumpAnim = Animate.jump:FindFirstChild("JumpAnim")
-            
-            if jumpPreset == "Default" then
-                if jumpAnim and originalAnims.jump then jumpAnim.AnimationId = originalAnims.jump end
-            elseif animPresets[jumpPreset] then
-                local preset = animPresets[jumpPreset]
-                if jumpAnim and preset.jump then jumpAnim.AnimationId = preset.jump end
-            end
-        end
-        
-        local climbPreset = getPresetForType("climb")
-        if Animate:FindFirstChild("climb") then
-            local climbAnim = Animate.climb:FindFirstChild("ClimbAnim")
-            
-            if climbPreset == "Default" then
-                if climbAnim and originalAnims.climb then climbAnim.AnimationId = originalAnims.climb end
-            elseif animPresets[climbPreset] then
-                local preset = animPresets[climbPreset]
-                if climbAnim and preset.climb then climbAnim.AnimationId = preset.climb end
-            end
-        end
-        
-        local fallPreset = getPresetForType("fall")
-        if Animate:FindFirstChild("fall") then
-            local fallAnim = Animate.fall:FindFirstChild("FallAnim")
-            
-            if fallPreset == "Default" then
-                if fallAnim and originalAnims.fall then fallAnim.AnimationId = originalAnims.fall end
-            elseif animPresets[fallPreset] then
-                local preset = animPresets[fallPreset]
-                if fallAnim and preset.fall then fallAnim.AnimationId = preset.fall end
-            end
-        end
-        
+
         Animate.Disabled = false
     end
-    
-    FEAnimMaid:GiveTask(plr.CharacterAdded:Connect(function(character)
-        character:WaitForChild("Animate")
-        task.wait(0.5)
-        applyAnimations()
-    end))
-    
+
+    local function getPresetForType(animType)
+        if animState[animType] ~= "Default" then return animState[animType] end
+        if animState.all ~= "Default" then return animState.all end
+        return "Default"
+    end
+
+    local function applyAnimations()
+        if not feAnimEnabled then return end
+        if not plr or not plr.Character then return end
+
+        local character = plr.Character
+        local Animate = character:FindFirstChild("Animate")
+        if not Animate then return end
+
+        stopAllAnimations()
+        Animate.Disabled = true
+        task.wait(0.1)
+
+        for animType, info in pairs(animMap) do
+            local presetName = getPresetForType(animType)
+            local preset = animPresets[presetName]
+            local folder = Animate:FindFirstChild(info.folder)
+
+            if folder then
+                for _, slot in ipairs(info.slots) do
+                    local anim = folder:FindFirstChild(slot.child)
+                    if anim then
+                        if presetName == "Default" then
+                            if originalAnims[slot.origKey] then
+                                anim.AnimationId = originalAnims[slot.origKey]
+                            end
+                        elseif preset and preset[slot.origKey] then
+                            anim.AnimationId = preset[slot.origKey]
+                        end
+                    end
+                end
+            end
+        end
+
+        Animate.Disabled = false
+    end
+
+    local feAnimCharConn = nil
+
+    local function enableFEAnims()
+    if feAnimCharConn then
+        feAnimCharConn:Disconnect()
+        feAnimCharConn = nil
+    end
+
     if plr.Character then
         saveOriginalAnimations(plr.Character)
+        applyAnimations()
     end
-    
-    feAnimSection:AddDropdown("All Animations", {
-        "Default", "Vampire", "Hero", "Zombie Classic", "Mage", "Ghost", 
-        "Elder", "Levitation", "Astronaut", "Ninja", "Werewolf", "Cartoon", 
-        "Pirate", "Sneaky", "Toy", "Knight", "Confident", "Popstar", 
-        "Princess", "Cowboy", "Patrol", "Zombie FE"
-    }, function(selected)
+
+    feAnimCharConn = plr.CharacterAdded:Connect(function(character)
+        if not feAnimEnabled then return end
+        originalAnims = {}
+
+        local Animate = character:WaitForChild("Animate", 10)
+        if not Animate then return end
+
+        repeat task.wait() until Animate:FindFirstChild("idle") and
+            Animate.idle:FindFirstChild("Animation1") and
+            Animate.idle.Animation1.AnimationId ~= ""
+
+        task.wait(0.2)
+
+        saveOriginalAnimations(character)
+        applyAnimations()
+    end)
+
+    FEAnimMaid:GiveTask(feAnimCharConn)
+end
+
+    local function disableFEAnims()
+        if feAnimCharConn then
+            feAnimCharConn:Disconnect()
+            feAnimCharConn = nil
+        end
+        FEAnimMaid:DoCleaning()
+
+        animState.all   = "Default"
+        animState.idle  = "Default"
+        animState.walk  = "Default"
+        animState.run   = "Default"
+        animState.jump  = "Default"
+        animState.climb = "Default"
+        animState.fall  = "Default"
+
+        restoreDefaultAnimations()
+    end
+
+    local animOptions = {
+        "Default", "OG Rthro Run", "Vampire", "Hero", "Zombie Classic", "Mage", "Ghost",
+        "Elder", "Levitation", "Astronaut", "Ninja", "Werewolf", "Cartoon",
+        "Pirate", "Sneaky", "Toy", "Knight", "Confident", "Popstar",
+        "Princess", "Cowboy", "Patrol", "Zombie FE", "Catwalk Glam", "Amazon Unboxed","Glow Motion","Bubbly","Adidas Comm","KATSEYE","Wicked Popular"
+    }
+
+    feAnimSection:AddToggle("Enable FE Anims", function(enabled)
+        feAnimEnabled = enabled
+        if enabled then
+            enableFEAnims()
+        else
+            disableFEAnims()
+        end
+    end)
+
+    feAnimSection:AddDropdown("All Animations", animOptions, function(selected)
+        if not feAnimEnabled then return end
         animState.all = selected
         applyAnimations()
     end)
-    
-    local animOptions = {
-        "Default", "Vampire", "Hero", "Zombie Classic", "Mage", "Ghost", 
-        "Elder", "Levitation", "Astronaut", "Ninja", "Werewolf", "Cartoon", 
-        "Pirate", "Sneaky", "Toy", "Knight", "Confident", "Popstar", 
-        "Princess", "Cowboy", "Patrol", "Zombie FE"
+
+    local dropdowns = {
+        { label = "Idle Animation",  key = "idle"  },
+        { label = "Walk Animation",  key = "walk"  },
+        { label = "Run Animation",   key = "run"   },
+        { label = "Jump Animation",  key = "jump"  },
+        { label = "Climb Animation", key = "climb" },
+        { label = "Fall Animation",  key = "fall"  },
     }
-    
-    feAnimSection:AddDropdown("Idle Animation", animOptions, function(selected)
-        animState.idle = selected
-        applyAnimations()
-    end)
-    
-    feAnimSection:AddDropdown("Walk Animation", animOptions, function(selected)
-        animState.walk = selected
-        applyAnimations()
-    end)
-    
-    feAnimSection:AddDropdown("Run Animation", animOptions, function(selected)
-        animState.run = selected
-        applyAnimations()
-    end)
-    
-    feAnimSection:AddDropdown("Jump Animation", animOptions, function(selected)
-        animState.jump = selected
-        applyAnimations()
-    end)
-    
-    feAnimSection:AddDropdown("Climb Animation", animOptions, function(selected)
-        animState.climb = selected
-        applyAnimations()
-    end)
-    
-    feAnimSection:AddDropdown("Fall Animation", animOptions, function(selected)
-        animState.fall = selected
-        applyAnimations()
+
+    for _, dd in ipairs(dropdowns) do
+        feAnimSection:AddDropdown(dd.label, animOptions, function(selected)
+            if not feAnimEnabled then return end
+            animState[dd.key] = selected
+            applyAnimations()
+        end)
+    end
+
+    RootMaid:GiveTask(function()
+        feAnimEnabled = false
+        disableFEAnims()
     end)
 end
 
 do
     local wallhopSection = shared.AddSection("Wallhop")
     
-    -- Services
     local UserInputService = game:GetService("UserInputService")
     local Players = game:GetService("Players")
     local Workspace = game:GetService("Workspace")
     local RunService = game:GetService("RunService")
     
-    -- Player specific
     local player = Players.LocalPlayer
     
-    -- Variables for Wallhop Functionality
     local wallhopToggle = false
+    local flickEnabled = false
     local InfiniteJumpEnabled = true
     local raycastParams = RaycastParams.new()
     raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
     local WallhopMaid = nil
     RootMaid:GiveTask(function() if WallhopMaid then WallhopMaid:DoCleaning() end end)
     
-    -- Precise wall detection function
     local function getWallRaycastResult()
         local character = player.Character
         if not character then return nil end
@@ -3226,14 +3187,13 @@ do
         local blockResult = Workspace:Blockcast(blockCastOriginCF, blockCastSize, blockCastDirection * blockCastDistance, raycastParams)
     
         if blockResult and blockResult.Instance and blockResult.Distance < minDistance then
-             minDistance = blockResult.Distance
-             closestHit = blockResult
+            minDistance = blockResult.Distance
+            closestHit = blockResult
         end
     
         return closestHit
     end
     
-    -- Core Wall Jump Execution Function
     local function executeWallJump(wallRayResult)
         if not InfiniteJumpEnabled then return end
     
@@ -3247,70 +3207,71 @@ do
         end
     
         InfiniteJumpEnabled = false
-    
-        local maxInfluenceAngleRight = math.rad(20)
-        local maxInfluenceAngleLeft  = math.rad(-100)
-    
-        local wallNormal = wallRayResult.Normal
-        local baseDirectionAwayFromWall = Vector3.new(wallNormal.X, 0, wallNormal.Z).Unit
-        if baseDirectionAwayFromWall.Magnitude < 0.1 then
-             local dirToHit = (wallRayResult.Position - rootPart.Position) * Vector3.new(1,0,1)
-             baseDirectionAwayFromWall = -dirToHit.Unit
-             if baseDirectionAwayFromWall.Magnitude < 0.1 then
-                 baseDirectionAwayFromWall = -rootPart.CFrame.LookVector * Vector3.new(1, 0, 1)
-                 if baseDirectionAwayFromWall.Magnitude > 0.1 then baseDirectionAwayFromWall = baseDirectionAwayFromWall.Unit end
-                 if baseDirectionAwayFromWall.Magnitude < 0.1 then baseDirectionAwayFromWall = Vector3.new(0,0,1) end
-             end
-        end
-        baseDirectionAwayFromWall = Vector3.new(baseDirectionAwayFromWall.X, 0, baseDirectionAwayFromWall.Z).Unit
-        if baseDirectionAwayFromWall.Magnitude < 0.1 then baseDirectionAwayFromWall = Vector3.new(0,0,1) end
-    
-        local cameraLook = camera.CFrame.LookVector
-        local horizontalCameraLook = Vector3.new(cameraLook.X, 0, cameraLook.Z).Unit
-        if horizontalCameraLook.Magnitude < 0.1 then horizontalCameraLook = baseDirectionAwayFromWall end
-    
-        local dot = math.clamp(baseDirectionAwayFromWall:Dot(horizontalCameraLook), -1, 1)
-        local angleBetween = math.acos(dot)
-        local cross = baseDirectionAwayFromWall:Cross(horizontalCameraLook)
-        local rotationSign = -math.sign(cross.Y)
-        if rotationSign == 0 then angleBetween = 0 end
-    
-        local actualInfluenceAngle
-        if rotationSign == 1 then
-            actualInfluenceAngle = math.min(angleBetween, maxInfluenceAngleRight)
-        elseif rotationSign == -1 then
-            actualInfluenceAngle = math.min(angleBetween, maxInfluenceAngleLeft)
+
+        if flickEnabled then
+            local maxInfluenceAngleRight = math.rad(20)
+            local maxInfluenceAngleLeft  = math.rad(-100)
+
+            local wallNormal = wallRayResult.Normal
+            local baseDirectionAwayFromWall = Vector3.new(wallNormal.X, 0, wallNormal.Z).Unit
+            if baseDirectionAwayFromWall.Magnitude < 0.1 then
+                local dirToHit = (wallRayResult.Position - rootPart.Position) * Vector3.new(1,0,1)
+                baseDirectionAwayFromWall = -dirToHit.Unit
+                if baseDirectionAwayFromWall.Magnitude < 0.1 then
+                    baseDirectionAwayFromWall = -rootPart.CFrame.LookVector * Vector3.new(1, 0, 1)
+                    if baseDirectionAwayFromWall.Magnitude > 0.1 then baseDirectionAwayFromWall = baseDirectionAwayFromWall.Unit end
+                    if baseDirectionAwayFromWall.Magnitude < 0.1 then baseDirectionAwayFromWall = Vector3.new(0,0,1) end
+                end
+            end
+            baseDirectionAwayFromWall = Vector3.new(baseDirectionAwayFromWall.X, 0, baseDirectionAwayFromWall.Z).Unit
+            if baseDirectionAwayFromWall.Magnitude < 0.1 then baseDirectionAwayFromWall = Vector3.new(0,0,1) end
+
+            local cameraLook = camera.CFrame.LookVector
+            local horizontalCameraLook = Vector3.new(cameraLook.X, 0, cameraLook.Z).Unit
+            if horizontalCameraLook.Magnitude < 0.1 then horizontalCameraLook = baseDirectionAwayFromWall end
+
+            local dot = math.clamp(baseDirectionAwayFromWall:Dot(horizontalCameraLook), -1, 1)
+            local angleBetween = math.acos(dot)
+            local cross = baseDirectionAwayFromWall:Cross(horizontalCameraLook)
+            local rotationSign = -math.sign(cross.Y)
+            if rotationSign == 0 then angleBetween = 0 end
+
+            local actualInfluenceAngle
+            if rotationSign == 1 then
+                actualInfluenceAngle = math.min(angleBetween, maxInfluenceAngleRight)
+            elseif rotationSign == -1 then
+                actualInfluenceAngle = math.min(angleBetween, maxInfluenceAngleLeft)
+            else
+                actualInfluenceAngle = 0
+            end
+
+            local adjustmentRotation = CFrame.Angles(0, actualInfluenceAngle * rotationSign, 0)
+            local initialTargetLookDirection = adjustmentRotation * baseDirectionAwayFromWall
+
+            rootPart.CFrame = CFrame.lookAt(rootPart.Position, rootPart.Position + initialTargetLookDirection)
+            RunService.Heartbeat:Wait()
+
+            if humanoid and humanoid:GetState() ~= Enum.HumanoidStateType.Dead then
+                humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+
+                rootPart.CFrame = rootPart.CFrame * CFrame.Angles(0, -1, 0)
+                task.wait(0.15)
+                rootPart.CFrame = rootPart.CFrame * CFrame.Angles(0, 1, 0)
+            end
+
+            local directionTowardsWall = -baseDirectionAwayFromWall
+            task.wait(0.05)
+            rootPart.CFrame = CFrame.lookAt(rootPart.Position, rootPart.Position + directionTowardsWall)
         else
-            actualInfluenceAngle = 0
+            if humanoid and humanoid:GetState() ~= Enum.HumanoidStateType.Dead then
+                humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+            end
         end
-    
-        local adjustmentRotation = CFrame.Angles(0, actualInfluenceAngle * rotationSign, 0)
-        local initialTargetLookDirection = adjustmentRotation * baseDirectionAwayFromWall
-    
-        rootPart.CFrame = CFrame.lookAt(rootPart.Position, rootPart.Position + initialTargetLookDirection)
-        RunService.Heartbeat:Wait()
-    
-        local didJump = false
-        if humanoid and humanoid:GetState() ~= Enum.HumanoidStateType.Dead then
-             humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
-             didJump = true
-    
-             rootPart.CFrame = rootPart.CFrame * CFrame.Angles(0, -1, 0)
-             task.wait(0.15)
-             rootPart.CFrame = rootPart.CFrame * CFrame.Angles(0, 1, 0)
-        end
-    
-        if didJump then
-             local directionTowardsWall = -baseDirectionAwayFromWall
-             task.wait(0.05)
-             rootPart.CFrame = CFrame.lookAt(rootPart.Position, rootPart.Position + directionTowardsWall)
-        end
-    
+
         task.wait(0.1)
         InfiniteJumpEnabled = true
     end
     
-    -- Main Wallhop Toggle
     wallhopSection:AddToggle("Enable Wallhop", function(enabled)
         if WallhopMaid then WallhopMaid:DoCleaning() WallhopMaid = nil end
         wallhopToggle = enabled
@@ -3326,6 +3287,10 @@ do
                 end
             end))
         end
+    end)
+
+    wallhopSection:AddToggle("Enable Wallhop Flick", function(enabled)
+        flickEnabled = enabled
     end)
 end
 
@@ -3347,10 +3312,6 @@ lagVCSection:AddToggle("Enable Lag VC", function(state)
         end))
     end
 end)
-
-local shared = odh_shared_plugins
-local _game = shared.game_name
-if _game == "Murder Mystery 2" or _game == "Murder Mystery Modded" then
 
     local Players = game:GetService("Players")
     local LocalPlayer = Players.LocalPlayer
@@ -3570,8 +3531,6 @@ do
     end)
 end
 
-end
-
 do
     local Players = game:GetService("Players")
     local StarterGui = game:GetService("StarterGui")
@@ -3755,8 +3714,392 @@ do
     end)
 end
 
+local statColorsEnabled = false
+local uiPosition = "Top Right"
+
+local positionPresets = {
+    ["Top Right"]    = UDim2.new(0.80, 0, 0, 15),
+    ["Top Left"]     = UDim2.new(0.02, 0, 0, 15),
+    ["Top Center"]   = UDim2.new(0.44, 0, 0, 15),
+    ["Bottom Right"] = UDim2.new(0.80, 0, 0.85, 0),
+    ["Bottom Left"]  = UDim2.new(0.02, 0, 0.85, 0),
+}
+
+local function getFpsCap()
+    local cap = workspace:GetAttribute("FPSCap") or 60
+    return cap
+end
+
+local function getFpsColor(fps)
+    local cap = getFpsCap()
+    if fps >= cap * 0.85 then
+        return Color3.fromRGB(0, 255, 0)
+    elseif fps >= cap * 0.5 then
+        return Color3.fromRGB(255, 200, 0)
+    else
+        return Color3.fromRGB(255, 0, 0)
+    end
+end
+
+local function getPingColor(ping)
+    if ping <= 80 then
+        return Color3.fromRGB(0, 255, 0)
+    elseif ping <= 150 then
+        return Color3.fromRGB(255, 200, 0)
+    else
+        return Color3.fromRGB(255, 0, 0)
+    end
+end
+
+local function applyPosition(Fps, Ping, preset)
+    local base = positionPresets[preset] or positionPresets["Top Right"]
+    Fps.Position = base
+    Ping.Position = UDim2.new(base.X.Scale, base.X.Offset, base.Y.Scale, base.Y.Offset + 28)
+end
+
+local function createFpsPingGui()
+    if _G.FpsPingGui then
+        _G.FpsPingGui:Destroy()
+    end
+
+    repeat task.wait() until game:IsLoaded()
+    task.wait(0.25)
+
+    local ScreenGui = Instance.new("ScreenGui")
+    local Fps = Instance.new("TextLabel")
+    local Ping = Instance.new("TextLabel")
+
+    ScreenGui.Name = "FpsPingMonitor"
+    ScreenGui.Parent = game.CoreGui
+    ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    _G.FpsPingGui = ScreenGui
+    _G.FpsLabel = Fps
+    _G.PingLabel = Ping
+
+    Fps.Parent = ScreenGui
+    Fps.BackgroundTransparency = 1
+    Fps.Size = UDim2.new(0, 120, 0, 25)
+    Fps.Font = Enum.Font.SourceSans
+    Fps.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Fps.TextScaled = true
+    Fps.Text = "0"
+
+    Ping.Parent = ScreenGui
+    Ping.BackgroundTransparency = 1
+    Ping.Size = UDim2.new(0, 120, 0, 25)
+    Ping.Font = Enum.Font.SourceSans
+    Ping.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Ping.TextScaled = true
+    Ping.Text = "0"
+
+    applyPosition(Fps, Ping, uiPosition)
+
+    local RunService = game:GetService("RunService")
+    local Stats = game:GetService("Stats")
+    local lastFPS = -1
+    local lastPing = -1
+    local lastPingUpdate = 0
+    local pingInterval = 0.5
+    local connection
+
+    connection = RunService.RenderStepped:Connect(function(frame)
+        if not _G.FpsPingGui or not _G.FpsPingGui.Parent then
+            if connection then connection:Disconnect() end
+            return
+        end
+
+        local fps = math.floor(1 / frame + 0.5)
+        if fps ~= lastFPS then
+            lastFPS = fps
+            Fps.Text = tostring(fps)
+            if statColorsEnabled then
+                Fps.TextColor3 = getFpsColor(fps)
+            else
+                Fps.TextColor3 = Color3.fromRGB(255, 255, 255)
+            end
+        end
+
+        local now = os.clock()
+        if now - lastPingUpdate >= pingInterval then
+            lastPingUpdate = now
+            local pingValue = Stats.Network.ServerStatsItem["Data Ping"]:GetValueString()
+            local rawPing = tonumber(pingValue:match("%-?%d+")) or 0
+            if rawPing ~= lastPing then
+                lastPing = rawPing
+                Ping.Text = tostring(rawPing)
+                if statColorsEnabled then
+                    Ping.TextColor3 = getPingColor(rawPing)
+                else
+                    Ping.TextColor3 = Color3.fromRGB(255, 255, 255)
+                end
+            end
+        end
+    end)
+end
+
+local fps_ping_section = shared.AddSection("FPS & PING MONITOR")
+
+fps_ping_section:AddToggle("Enable Monitor UI", function(bool)
+    if bool then
+        createFpsPingGui()
+    else
+        if _G.FpsPingGui then
+            _G.FpsPingGui:Destroy()
+            _G.FpsPingGui = nil
+            _G.FpsLabel = nil
+            _G.PingLabel = nil
+        end
+    end
+end)
+
+fps_ping_section:AddToggle("Enable Statistic Colors", function(bool)
+    statColorsEnabled = bool
+end)
+
+fps_ping_section:AddDropdown("UI Position", {
+    "Top Right", "Top Left", "Top Center",
+    "Bottom Right", "Bottom Left"
+}, function(s)
+    uiPosition = s
+    if _G.FpsLabel and _G.PingLabel then
+        applyPosition(_G.FpsLabel, _G.PingLabel, s)
+    end
+end)
+
+fps_ping_section:AddParagraph("Skidded & Improved By:", "@lzzzx")
+
+local fpsBoostEnabled = false
+
+local function applyFpsBoost()
+    local Lighting = game:GetService("Lighting")
+    local Players = game:GetService("Players")
+    local localPlayer = Players.LocalPlayer
+
+    Lighting.GlobalShadows = false
+    Lighting.FogEnd = 100000
+    Lighting.FogStart = 100000
+    Lighting.Brightness = 1
+    Lighting.Ambient = Color3.fromRGB(178, 178, 178)
+    Lighting.OutdoorAmbient = Color3.fromRGB(178, 178, 178)
+    Lighting.ClockTime = 14
+
+    for _, effect in ipairs(Lighting:GetChildren()) do
+        if effect:IsA("PostEffect") or effect:IsA("Sky") or effect:IsA("Atmosphere") then
+            effect.Enabled = false
+        end
+    end
+
+    settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+    settings().Rendering.MeshPartDetailLevel = Enum.MeshPartDetailLevel.Disabled
+
+    workspace.Terrain.WaterWaveSize = 0
+    workspace.Terrain.WaterWaveSpeed = 0
+    workspace.Terrain.Decoration = false
+    workspace.Terrain.WaterReflectance = 0
+    workspace.Terrain.WaterTransparency = 0
+
+    if localPlayer and localPlayer.Character then
+        for _, obj in ipairs(localPlayer.Character:GetDescendants()) do
+            if obj:IsA("Accessory") or obj:IsA("Hat") then
+                for _, part in ipairs(obj:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        part.CastShadow = false
+                    end
+                end
+            end
+        end
+    end
+
+    local function degradePart(obj)
+        if obj:IsA("BasePart") then
+            obj.CastShadow = false
+            obj.RenderFidelity = Enum.RenderFidelity.Disabled
+            obj.LODFactor = 0
+        elseif obj:IsA("MeshPart") then
+            obj.CastShadow = false
+            obj.RenderFidelity = Enum.RenderFidelity.Disabled
+        elseif obj:IsA("SpecialMesh") then
+            obj.LOD = Enum.MeshPartDetailLevel.Disabled
+        elseif obj:IsA("ParticleEmitter") then
+            obj.Enabled = false
+            obj.Rate = 0
+        elseif obj:IsA("Trail") then
+            obj.Enabled = false
+        elseif obj:IsA("Smoke") then
+            obj.Enabled = false
+        elseif obj:IsA("Fire") then
+            obj.Enabled = false
+        elseif obj:IsA("Sparkles") then
+            obj.Enabled = false
+        elseif obj:IsA("Explosion") then
+            obj.BlastPressure = 0
+        elseif obj:IsA("SelectionBox") then
+            obj.Visible = false
+        elseif obj:IsA("BillboardGui") then
+            obj.Enabled = false
+        elseif obj:IsA("SurfaceGui") then
+            obj.Enabled = false
+        elseif obj:IsA("Decal") then
+            obj.Transparency = 1
+        elseif obj:IsA("Texture") then
+            obj.Transparency = 1
+        elseif obj:IsA("PointLight") or obj:IsA("SpotLight") or obj:IsA("SurfaceLight") then
+            obj.Enabled = false
+        elseif obj:IsA("Sky") then
+            obj.Parent = nil
+        end
+    end
+
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        degradePart(obj)
+    end
+
+    _G.FpsBoostConnection = workspace.DescendantAdded:Connect(function(obj)
+        task.defer(degradePart, obj)
+    end)
+
+    _G.FpsBoostLightingConnection = Lighting.DescendantAdded:Connect(function(obj)
+        if obj:IsA("PostEffect") or obj:IsA("Sky") or obj:IsA("Atmosphere") then
+            obj.Enabled = false
+        end
+    end)
+
+    if localPlayer then
+        _G.FpsBoostCharConnection = localPlayer.CharacterAdded:Connect(function(char)
+            for _, obj in ipairs(char:GetDescendants()) do
+                degradePart(obj)
+            end
+            char.DescendantAdded:Connect(function(obj)
+                task.defer(degradePart, obj)
+            end)
+        end)
+    end
+end
+
+local function removeFpsBoost()
+    local Lighting = game:GetService("Lighting")
+
+    Lighting.GlobalShadows = true
+    Lighting.FogEnd = 100000
+    Lighting.FogStart = 0
+    Lighting.Brightness = 2
+    Lighting.Ambient = Color3.fromRGB(70, 70, 70)
+    Lighting.OutdoorAmbient = Color3.fromRGB(128, 128, 128)
+
+    for _, effect in ipairs(Lighting:GetChildren()) do
+        if effect:IsA("PostEffect") or effect:IsA("Sky") or effect:IsA("Atmosphere") then
+            effect.Enabled = true
+        end
+    end
+
+    settings().Rendering.QualityLevel = Enum.QualityLevel.Automatic
+    settings().Rendering.MeshPartDetailLevel = Enum.MeshPartDetailLevel.Full
+
+    workspace.Terrain.WaterWaveSize = 0.15
+    workspace.Terrain.WaterWaveSpeed = 10
+    workspace.Terrain.Decoration = true
+    workspace.Terrain.WaterReflectance = 1
+    workspace.Terrain.WaterTransparency = 0
+
+    if _G.FpsBoostConnection then
+        _G.FpsBoostConnection:Disconnect()
+        _G.FpsBoostConnection = nil
+    end
+
+    if _G.FpsBoostLightingConnection then
+        _G.FpsBoostLightingConnection:Disconnect()
+        _G.FpsBoostLightingConnection = nil
+    end
+
+    if _G.FpsBoostCharConnection then
+        _G.FpsBoostCharConnection:Disconnect()
+        _G.FpsBoostCharConnection = nil
+    end
+end
+
+local ultra_fps_section = shared.AddSection("Light FPS Boost")
+
+ultra_fps_section:AddToggle("Enable Frame Enhancement", function(bool)
+    fpsBoostEnabled = bool
+    if bool then
+        applyFpsBoost()
+    else
+        removeFpsBoost()
+    end
+end)
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+local VirtualUser = game:GetService("VirtualUser")
+local trueAntiFlingEnabled = false
+local trueAntiAfkEnabled = false
+local trueAntiFlingConnection = nil
+local trueAntiAfkConnection = nil
+
+local function enableTrueAntiFling()
+    if trueAntiFlingConnection then
+        trueAntiFlingConnection:Disconnect()
+        trueAntiFlingConnection = nil
+    end
+    trueAntiFlingConnection = RunService.Stepped:Connect(function()
+        for _, player in pairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character then
+                for _, v in pairs(player.Character:GetDescendants()) do
+                    if v:IsA("BasePart") then
+                        v.CanCollide = false
+                    end
+                end
+            end
+        end
+    end)
+end
+
+local function disableTrueAntiFling()
+    if trueAntiFlingConnection then
+        trueAntiFlingConnection:Disconnect()
+        trueAntiFlingConnection = nil
+    end
+end
+
+local function enableTrueAntiAfk()
+    if trueAntiAfkConnection then
+        trueAntiAfkConnection:Disconnect()
+        trueAntiAfkConnection = nil
+    end
+    trueAntiAfkConnection = LocalPlayer.Idled:Connect(function()
+        VirtualUser:CaptureController()
+        VirtualUser:ClickButton2(Vector2.new())
+    end)
+end
+
+local function disableTrueAntiAfk()
+    if trueAntiAfkConnection then
+        trueAntiAfkConnection:Disconnect()
+        trueAntiAfkConnection = nil
+    end
+end
+
+local true_antis_section = shared.AddSection("True Anti's")
+true_antis_section:AddToggle("Enable IY Anti Fling", function(bool)
+    trueAntiFlingEnabled = bool
+    if bool then
+        enableTrueAntiFling()
+    else
+        disableTrueAntiFling()
+    end
+end)
+true_antis_section:AddToggle("Enable True Anti AFK", function(bool)
+    trueAntiAfkEnabled = bool
+    if bool then
+        enableTrueAntiAfk()
+    else
+        disableTrueAntiAfk()
+    end
+end)
+
 local creditsSection = shared.AddSection("Credits")
-creditsSection:AddParagraph("@lzzzx", "Made this plugin, if you have requests feel free to ask.") end 
+creditsSection:AddParagraph("@lzzzx", "Made this plugin, if you have requests feel free to ask.")
 
 RootMaid:GiveTask(function()
     
