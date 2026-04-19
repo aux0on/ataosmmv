@@ -895,7 +895,8 @@ end
 
 do
     local hlSection = shared.AddSection("FE Headless")
-    local hlId = 78837807518622
+    hlSection:AddLabel("V2 & Higher Require a Very Small Head")
+	local hlId = 78837807518622
     local hlId2 = 117080641351340
     local hlId3 = 136055001302601
     
@@ -1567,8 +1568,9 @@ do
 end
 
 do
-    local skySection = shared.AddSection("Skybox")
-    local skyId = 70883871260184
+    local skySection = shared.AddSection("FE Blind All")
+    skySection:AddLabel("Requires The Glitch Walker Bundle")
+	local skyId = 70883871260184
     local SkyboxMaid = nil
     RootMaid:GiveTask(function() if SkyboxMaid then SkyboxMaid:DoCleaning() end end)
     
