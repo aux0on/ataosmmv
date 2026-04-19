@@ -66,6 +66,9 @@ if not hiddenGui then
     RootMaid:GiveTask(hiddenGui)
 end
 
+local aboutSection = shared.AddSection("About")
+aboutSection:AddParagraph("ATAOs MMV", "is the version you are using.")
+
 local serverSection = shared.AddSection("Server Options")
 
 local PlaceId = game.PlaceId
