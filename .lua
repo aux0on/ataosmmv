@@ -4069,6 +4069,13 @@ do
     LocalPlayer.CharacterRemoving:Connect(function()
         stopCameraStretch()
     end)
+    
+    LocalPlayer.CharacterAdded:Connect(function()
+        task.wait(0.5)
+        if cameraStretchEnabled then
+            applyCameraStretch()
+        end
+    end)
 end
 
 local Players = game:GetService("Players")
