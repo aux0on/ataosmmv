@@ -1369,10 +1369,10 @@ end
 
 do
     local perkSection = shared.AddSection("Perks")
-    local hasteOn = false
-    local hasteSpd = 18
-    local PerkMaid = nil
-    RootMaid:GiveTask(function() if PerkMaid then PerkMaid:DoCleaning() end end)
+    local hasteOn, blatantMode, hasteSpd = false, false, 18
+    local PerkMaid
+    
+    RootMaid:GiveTask(function() if PerkMaid then PerkMaid:Destroy() end end)
     
     local function updSpd()
         if not hasteOn then return end
@@ -1380,37 +1380,40 @@ do
         local h = c and c:FindFirstChild("Humanoid")
         if not h then return end
         
-        if (c:FindFirstChild("Knife") or (LocalPlayer.Backpack:FindFirstChild("Knife") and c:FindFirstChild("Knife"))) then
-            h.WalkSpeed = hasteSpd
-        else
-            h.WalkSpeed = 16
-        end
+        h.WalkSpeed = (c:FindFirstChild("Knife") or (LocalPlayer.Backpack:FindFirstChild("Knife") and c:FindFirstChild("Knife"))) 
+            and hasteSpd or 16
     end
     
-    local function setupHaste()
-        if PerkMaid then PerkMaid:DoCleaning() PerkMaid = nil end
-        if not hasteOn then
-            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then LocalPlayer.Character.Humanoid.WalkSpeed = 16 end
-            return
-        end
+    perkSection:AddToggle("Enable Auto Haste", function(s) 
+        hasteOn = s 
+        if PerkMaid then PerkMaid:Destroy() end
         
-        PerkMaid = Maid.new()
-        PerkMaid:GiveTask(LocalPlayer.CharacterAdded:Connect(function(c)
-            local h = c:WaitForChild("Humanoid")
-            PerkMaid:GiveTask(c.ChildAdded:Connect(updSpd))
-            PerkMaid:GiveTask(c.ChildRemoved:Connect(updSpd))
-            task.wait(0.5)
-            updSpd()
-        end))
-        
-        if LocalPlayer.Character then
-            PerkMaid:GiveTask(LocalPlayer.Character.ChildAdded:Connect(updSpd))
-            PerkMaid:GiveTask(LocalPlayer.Character.ChildRemoved:Connect(updSpd))
-            updSpd()
+        if s then
+            PerkMaid = Maid.new()
+            PerkMaid:GiveTask(LocalPlayer.CharacterAdded:Connect(function(c)
+                local h = c:WaitForChild("Humanoid")
+                PerkMaid:GiveTasks(c.ChildAdded:Connect(updSpd), c.ChildRemoved:Connect(updSpd))
+                task.wait(0.5)
+                updSpd()
+            end))
+            
+            if LocalPlayer.Character then
+                PerkMaid:GiveTasks(
+                    LocalPlayer.Character.ChildAdded:Connect(updSpd),
+                    LocalPlayer.Character.ChildRemoved:Connect(updSpd)
+                )
+                updSpd()
+            end
+        elseif LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+            LocalPlayer.Character.Humanoid.WalkSpeed = 16
         end
-    end
+    end)
     
-    perkSection:AddToggle("Enable Auto Haste", function(s) hasteOn = s setupHaste() end)
+    perkSection:AddToggle("Enable Blatant Mode", function(s)
+        blatantMode = s
+        hasteSpd = blatantMode and 19 or 18
+        updSpd()
+    end)
     perkSection:AddLabel("Stacks With Other Perks")
 end
 
@@ -2313,7 +2316,7 @@ end)
 local creditsSection = shared.AddSection("Credits")
 creditsSection:AddParagraph("@lzzzx", "Made this plugin, if you have requests feel free to ask.")
 
-shared.Notify("ATAOs (MMV) Successfully Loaded", 5)
+shared.Notify("ATAOs ON TOP NIGGA", 5)
 
 RootMaid:GiveTask(function()
     
