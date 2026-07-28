@@ -654,19 +654,125 @@ end)
 RootMaid:GiveTask(function() if KillAllMaid then KillAllMaid:DoCleaning() end end)
 
 do
-    local flingSection = shared.AddSection("Fling")
-    local flingSelPlr = nil
-    local flingActive = true
+    local resetSection = shared.AddSection("Reset")
+    local flingSelPlr, flingActive = nil, true
+    local selectedPlayers = {}
     local whitelist = {}
     local flingButtonSize = 0.11
-    local selectedPlayers = {}
+    local clickFlingEnabled = false
+    local flingAuraEnabled = false
+    local auraStuds = 15
+    local maids = {autoSheriff=nil, autoMurderer=nil, loopPlr=nil, loopAll=nil, clickFling=nil, flingAura=nil}
     local buttonToggles = {Sheriff=false, Murderer=false, Player=false}
-    local maids = {autoSheriff=nil, autoMurderer=nil, loopPlr=nil, loopAll=nil}
     
+    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+    local Players = game:GetService("Players")
+    local LocalPlayer = Players.LocalPlayer
+    local UserInputService = game:GetService("UserInputService")
+    local RunService = game:GetService("RunService")
+    local Workspace = game:GetService("Workspace")
+
     local function isWhitelisted(player)
         return whitelist[player.UserId] == true
     end
-    
+
+    local isResetting = false
+    local currentResetConnection = nil
+
+    local function touch(a, b)
+        pcall(function()
+            firetouchinterest(a, b, 0)
+            firetouchinterest(a, b, 1)
+        end)
+    end
+
+    local function fullyRestoreCharacter(character, savedData)
+        if not character or not savedData then return end
+        local humanoid = character:FindFirstChildOfClass("Humanoid")
+        local rootPart = character:FindFirstChild("HumanoidRootPart")
+        if not humanoid or not rootPart then return end
+        humanoid.PlatformStand = false
+        for _, track in ipairs(humanoid:GetPlayingAnimationTracks()) do track:Stop() end
+        rootPart.AssemblyLinearVelocity = Vector3.zero
+        rootPart.AssemblyAngularVelocity = Vector3.zero
+        rootPart.Velocity = Vector3.zero
+        rootPart.RotVelocity = Vector3.zero
+        rootPart.CFrame = savedData.cframe
+        humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+        for _, part in ipairs(character:GetDescendants()) do
+            if part:IsA("BasePart") then part.CanCollide = true end
+        end
+    end
+
+    local function resetPlayer(TargetPlayer)
+        if not TargetPlayer then return false end
+        if isResetting then return false end
+        if isWhitelisted(TargetPlayer) then return false end
+        if TargetPlayer == LocalPlayer then return false end
+
+        local Character = LocalPlayer.Character
+        if not Character then return false end
+        local Humanoid = Character:FindFirstChildOfClass("Humanoid")
+        local RootPart = Humanoid and Humanoid.RootPart
+        local TCharacter = TargetPlayer.Character
+        if not (Character and Humanoid and RootPart and TCharacter) then return false end
+
+        local TRootPart = TCharacter:FindFirstChild("HumanoidRootPart")
+        local THead = TCharacter:FindFirstChild("Head")
+        if not TRootPart then return false end
+
+        isResetting = true
+
+        local savedData = { cframe = RootPart.CFrame }
+        Humanoid.PlatformStand = true
+
+        local bv = Instance.new("BodyVelocity")
+        bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+        bv.Velocity = Vector3.new(0, -50000, 0)
+        bv.Parent = RootPart
+
+        local bg = Instance.new("BodyGyro")
+        bg.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+        bg.P = 1000000
+        bg.Parent = RootPart
+
+        local originalDestroyHeight = Workspace.FallenPartsDestroyHeight
+        Workspace.FallenPartsDestroyHeight = -100000
+
+        local startTime = tick()
+        local resetDuration = 1.5
+
+        currentResetConnection = RunService.Heartbeat:Connect(function()
+            if tick() - startTime > resetDuration or not TargetPlayer.Character or not TRootPart.Parent then
+                Workspace.FallenPartsDestroyHeight = originalDestroyHeight
+                bv:Destroy()
+                bg:Destroy()
+                fullyRestoreCharacter(Character, savedData)
+                if currentResetConnection then
+                    currentResetConnection:Disconnect()
+                    currentResetConnection = nil
+                end
+                isResetting = false
+                return
+            end
+
+            if TRootPart and TRootPart.Parent and Character and Character.Parent then
+                local headPos = THead and THead.Position or (TRootPart.Position + Vector3.new(0, 2.5, 0))
+                RootPart.CFrame = CFrame.new(headPos)
+                RootPart.AssemblyLinearVelocity = Vector3.new(0, -50000, 0)
+                RootPart.AssemblyAngularVelocity = Vector3.new(7500, 7500, 7500)
+
+                for i = 1, 5 do
+                    touch(RootPart, TRootPart)
+                    if THead then touch(RootPart, THead) end
+                end
+                pcall(sethiddenproperty, RootPart, "PhysicsRepRootPart", TRootPart)
+            end
+        end)
+
+        return true
+    end
+
     local function isPlayerSelected(player)
         for _, selected in ipairs(selectedPlayers) do
             if selected.UserId == player.UserId then
@@ -675,214 +781,124 @@ do
         end
         return false
     end
-    
+
     local function findSheriff()
-        for _, p in pairs(Services.Players:GetPlayers()) do
-            if p ~= LocalPlayer and not isWhitelisted(p) then
-                if p.Backpack:FindFirstChild("Gun") then
-                    return p
-                end
-                if p.Character and p.Character:FindFirstChild("Gun") then
-                    return p
+        local success, roleData = pcall(function()
+            local remote = ReplicatedStorage:FindFirstChild("GetPlayerData", true)
+            if remote and remote:IsA("RemoteFunction") then
+                return remote:InvokeServer()
+            end
+        end)
+        if success and roleData then
+            for playerName, data in pairs(roleData) do
+                if data.Role == "Sheriff" and not data.Killed and not data.Dead then
+                    local p = Players:FindFirstChild(playerName)
+                    if p and p ~= LocalPlayer and not isWhitelisted(p) then return p end
                 end
             end
         end
         return nil
     end
-    
+
     local function findMurderer()
-        for _, p in pairs(Services.Players:GetPlayers()) do
-            if p ~= LocalPlayer and not isWhitelisted(p) then
-                if p.Backpack:FindFirstChild("Knife") then
-                    return p
-                end
-                if p.Character and p.Character:FindFirstChild("Knife") then
-                    return p
+        local success, roleData = pcall(function()
+            local remote = ReplicatedStorage:FindFirstChild("GetPlayerData", true)
+            if remote and remote:IsA("RemoteFunction") then
+                return remote:InvokeServer()
+            end
+        end)
+        if success and roleData then
+            for playerName, data in pairs(roleData) do
+                if data.Role == "Murderer" and not data.Killed and not data.Dead then
+                    local p = Players:FindFirstChild(playerName)
+                    if p and p ~= LocalPlayer and not isWhitelisted(p) then return p end
                 end
             end
         end
         return nil
     end
-    
-    local function OdhSkid(TargetPlayer, duration)
-        if isWhitelisted(TargetPlayer) then
-            shared.Notify("Whitelist", TargetPlayer.Name.." is whitelisted!", 3)
-            return
-        end
+
+    local function hasGun(player)
+        local character = player.Character
+        if not character then return false end
         
-        local Character = LocalPlayer.Character
-        local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
-        local RootPart = Humanoid and Humanoid.RootPart
-        local TCharacter = TargetPlayer.Character
-        
-        if not (Character and Humanoid and RootPart and TCharacter) then return end
-        
-        local THumanoid = TCharacter:FindFirstChildOfClass("Humanoid")
-        local TRootPart = THumanoid and THumanoid.RootPart
-        local THead = TCharacter:FindFirstChild("Head")
-        local Accessory = TCharacter:FindFirstChildOfClass("Accessory")
-        local Handle = Accessory and Accessory:FindFirstChild("Handle")
-        
-        if RootPart.Velocity.Magnitude < 50 then
-            getgenv().OldPos = RootPart.CFrame
-        end
-        
-        if THead then
-            workspace.CurrentCamera.CameraSubject = THead
-        elseif not THead and Handle then
-            workspace.CurrentCamera.CameraSubject = Handle
-        elseif THumanoid and TRootPart then
-            workspace.CurrentCamera.CameraSubject = THumanoid
-        end
-        
-        if not TCharacter:FindFirstChildWhichIsA("BasePart") then
-            return
-        end
-        
-        local FPos = function(BasePart, Pos, Ang)
-            RootPart.CFrame = CFrame.new(BasePart.Position) * Pos * Ang
-            Character:SetPrimaryPartCFrame(CFrame.new(BasePart.Position) * Pos * Ang)
-            RootPart.Velocity = Vector3.new(9e7, 9e7 * 10, 9e7)
-            RootPart.RotVelocity = Vector3.new(9e8, 9e8, 9e8)
-        end
-        
-        local SFBasePart = function(BasePart)
-            local TimeToWait = duration or 2
-            local Time = tick()
-            local Angle = 0
-            
-            repeat
-                if RootPart and THumanoid then
-                    if BasePart.Velocity.Magnitude < 50 then
-                        Angle = Angle + 100
-                        
-                        FPos(BasePart, CFrame.new(0, 1.5, 0) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle),0 ,0))
-                        task.wait()
-                        FPos(BasePart, CFrame.new(0, -1.5, 0) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0))
-                        task.wait()
-                        FPos(BasePart, CFrame.new(2.25, 1.5, -2.25) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0))
-                        task.wait()
-                        FPos(BasePart, CFrame.new(-2.25, -1.5, 2.25) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0))
-                        task.wait()
-                        FPos(BasePart, CFrame.new(0, 1.5, 0) + THumanoid.MoveDirection,CFrame.Angles(math.rad(Angle), 0, 0))
-                        task.wait()
-                        FPos(BasePart, CFrame.new(0, -1.5, 0) + THumanoid.MoveDirection,CFrame.Angles(math.rad(Angle), 0, 0))
-                        task.wait()
-                    else
-                        FPos(BasePart, CFrame.new(0, 1.5, THumanoid.WalkSpeed), CFrame.Angles(math.rad(90), 0, 0))
-                        task.wait()
-                        FPos(BasePart, CFrame.new(0, -1.5, -THumanoid.WalkSpeed), CFrame.Angles(0, 0, 0))
-                        task.wait()
-                        FPos(BasePart, CFrame.new(0, 1.5, THumanoid.WalkSpeed), CFrame.Angles(math.rad(90), 0, 0))
-                        task.wait()
-                        FPos(BasePart, CFrame.new(0, 1.5, TRootPart.Velocity.Magnitude / 1.25), CFrame.Angles(math.rad(90), 0, 0))
-                        task.wait()
-                        FPos(BasePart, CFrame.new(0, -1.5, -TRootPart.Velocity.Magnitude / 1.25), CFrame.Angles(0, 0, 0))
-                        task.wait()
-                        FPos(BasePart, CFrame.new(0, 1.5, TRootPart.Velocity.Magnitude / 1.25), CFrame.Angles(math.rad(90), 0, 0))
-                        task.wait()
-                        FPos(BasePart, CFrame.new(0, -1.5, 0), CFrame.Angles(math.rad(90), 0, 0))
-                        task.wait()
-                        FPos(BasePart, CFrame.new(0, -1.5, 0), CFrame.Angles(0, 0, 0))
-                        task.wait()
-                        FPos(BasePart, CFrame.new(0, -1.5 ,0), CFrame.Angles(math.rad(-90), 0, 0))
-                        task.wait()
-                        FPos(BasePart, CFrame.new(0, -1.5, 0), CFrame.Angles(0, 0, 0))
-                        task.wait()
-                    end
-                else
-                    break
-                end
-            until not flingActive or BasePart.Velocity.Magnitude > 500 or BasePart.Parent ~= TargetPlayer.Character or TargetPlayer.Parent ~= Services.Players or not TargetPlayer.Character == TCharacter or THumanoid.Sit or tick() > Time + TimeToWait
-        end
-        
-        local previousDestroyHeight = workspace.FallenPartsDestroyHeight
-        workspace.FallenPartsDestroyHeight = 0/0
-        
-        local BV = Instance.new("BodyVelocity")
-        BV.Name = "EpixVel"
-        BV.Parent = RootPart
-        BV.Velocity = Vector3.new(9e8, 9e8, 9e8)
-        BV.MaxForce = Vector3.new(1/0, 1/0, 1/0)
-        
-        Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
-        
-        if TRootPart and THead then
-            if (TRootPart.CFrame.p - THead.CFrame.p).Magnitude > 5 then
-                SFBasePart(THead)
-            else
-                SFBasePart(TRootPart)
+        local tools = player.Backpack:GetChildren()
+        for _, tool in ipairs(tools) do
+            if tool:IsA("Tool") and (tool.Name:lower():find("gun") or tool.Name:lower():find("pistol") or 
+               tool.Name:lower():find("revolver") or tool.Name:lower():find("shotgun") or
+               tool.Name:lower():find("rifle") or tool.Name:lower():find("weapon")) then
+                return true
             end
-        elseif TRootPart and not THead then
-            SFBasePart(TRootPart)
-        elseif not TRootPart and THead then
-            SFBasePart(THead)
-        elseif not TRootPart and not THead and Accessory and Handle then
-            SFBasePart(Handle)
         end
         
-        BV:Destroy()
-        Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
-        workspace.CurrentCamera.CameraSubject = Humanoid
-        
-        repeat
-            if Character and Humanoid and RootPart and getgenv().OldPos then
-                RootPart.CFrame = getgenv().OldPos * CFrame.new(0, .5, 0)
-                Character:SetPrimaryPartCFrame(getgenv().OldPos * CFrame.new(0, .5, 0))
-                Humanoid:ChangeState("GettingUp")
-                for _, x in ipairs(Character:GetChildren()) do
-                    if x:IsA("BasePart") then
-                        x.Velocity, x.RotVelocity = Vector3.new(), Vector3.new()
-                    end
-                end
+        local characterTools = character:GetChildren()
+        for _, tool in ipairs(characterTools) do
+            if tool:IsA("Tool") and (tool.Name:lower():find("gun") or tool.Name:lower():find("pistol") or 
+               tool.Name:lower():find("revolver") or tool.Name:lower():find("shotgun") or
+               tool.Name:lower():find("rifle") or tool.Name:lower():find("weapon")) then
+                return true
             end
-            task.wait()
-        until not flingActive or (RootPart and getgenv().OldPos and (RootPart.Position - getgenv().OldPos.p).Magnitude < 25)
+        end
         
-        workspace.FallenPartsDestroyHeight = previousDestroyHeight
+        return false
     end
-    
-    flingSection:AddButton("Fling Sheriff", function()
-        local target = findSheriff()
-        if target then OdhSkid(target, 2) else shared.Notify("Error", "No Sheriff Found", 3) end
+
+    local function findSheriffWithFallback()
+        local sheriff = findSheriff()
+        if sheriff then return sheriff end
+        
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and not isWhitelisted(player) and hasGun(player) then
+                return player
+            end
+        end
+        
+        return nil
+    end
+
+    RootMaid:GiveTask(function()
+        for _, m in pairs(maids) do if m then m:Destroy() end end
+        if currentResetConnection then currentResetConnection:Disconnect() end
+        isResetting = false
     end)
-    
-    flingSection:AddButton("Fling Murderer", function()
+
+    resetSection:AddButton("Reset Sheriff", function()
+        local target = findSheriffWithFallback()
+        if target then resetPlayer(target) else Notify("Error", "No Sheriff Found", 3) end
+    end)
+
+    resetSection:AddButton("Reset Murderer", function()
         local murderer = findMurderer()
-        if murderer then OdhSkid(murderer, 2) else shared.Notify("Error", "No Murderer Found", 3) end
+        if murderer then resetPlayer(murderer) else Notify("Error", "No Murderer Found", 3) end
     end)
-    
-    flingSection:AddButton("Fling All", function()
-        for _, p in ipairs(Services.Players:GetPlayers()) do
+
+    resetSection:AddButton("Reset All", function()
+        for _, p in ipairs(Players:GetPlayers()) do
             if p ~= LocalPlayer and not isWhitelisted(p) then
-                OdhSkid(p, 2)
-                task.wait(0.5)
+                resetPlayer(p)
+                task.wait(0.2)
             end
         end
     end)
-    
-    flingSection:AddPlayerDropdown("Fling Player", function(p)
+
+    resetSection:AddPlayerDropdown("Reset Player", function(p)
         flingSelPlr = p
-        if p ~= LocalPlayer and not isWhitelisted(p) then OdhSkid(p, 2) end
+        if p and p ~= LocalPlayer and not isWhitelisted(p) then resetPlayer(p) end
     end)
-    
-    flingSection:AddPlayerDropdown("Select Players", function(p)
+
+    resetSection:AddPlayerDropdown("Select Players", function(p)
         if p and p ~= LocalPlayer and not isPlayerSelected(p) then
-            table_insert(selectedPlayers, p)
-            shared.Notify("Selected", p.Name.." added to fling list", 3)
-        elseif p and isPlayerSelected(p) then
-            shared.Notify("Error", p.Name.." is already selected", 3)
+            table.insert(selectedPlayers, p)
         end
     end)
-    
-    flingSection:AddButton("Clear Selected Players", function()
+
+    resetSection:AddButton("Clear Selected Players", function()
         selectedPlayers = {}
-        shared.Notify("Cleared", "All selected players removed", 3)
     end)
-    
+
     local function createAutoFling(name, findFunc)
-        flingSection:AddToggle("Auto Fling "..name, function(enabled)
-            if maids["auto"..name] then maids["auto"..name]:DoCleaning() end
+        resetSection:AddToggle("Auto Reset "..name, function(enabled)
+            if maids["auto"..name] then maids["auto"..name]:Destroy() end
             
             if enabled then
                 maids["auto"..name] = Maid.new()
@@ -891,7 +907,7 @@ do
                         task.wait(1)
                         local target = findFunc()
                         if target then
-                            OdhSkid(target, 2)
+                            resetPlayer(target)
                             task.wait(3)
                         end
                     end
@@ -900,28 +916,27 @@ do
             end
         end)
     end
-    
-    createAutoFling("Sheriff", findSheriff)
+
+    createAutoFling("Sheriff", findSheriffWithFallback)
     createAutoFling("Murderer", findMurderer)
-    
+
     local buttonConfigs = {
-        {name="Sheriff", text="FS", findFunc=findSheriff, id="fling_sheriff"},
-        {name="Murderer", text="FM", findFunc=findMurderer, id="fling_murderer"},
-        {name="Player", text="FP", findFunc=function() return flingSelPlr end, id="fling_player"}
+        {name="Sheriff", text="RS", findFunc=findSheriffWithFallback, id="reset_sheriff"},
+        {name="Murderer", text="RM", findFunc=findMurderer, id="reset_murderer"},
+        {name="Player", text="RP", findFunc=function() return flingSelPlr end, id="reset_player"}
     }
     
     for _, cfg in ipairs(buttonConfigs) do
-        flingSection:AddToggle("Enable "..cfg.text.." Button", function(enabled)
+        resetSection:AddToggle("Enable "..cfg.text.." Button", function(enabled)
             buttonToggles[cfg.name] = enabled
             
             if enabled then
                 BindableButtons.AddBButton(cfg.id, cfg.text, function()
                     local target = cfg.findFunc()
                     if target then
-                        OdhSkid(target, 2)
-                        shared.Notify("Success", "Flinging "..cfg.name..": "..target.Name, 2)
+                        resetPlayer(target)
                     else
-                        shared.Notify("Error", "No "..cfg.name.." Found", 3)
+                        Notify("Error", "No "..cfg.name.." Found", 3)
                     end
                 end)
                 local btn = BindableButtons.Buttons[cfg.id]
@@ -934,7 +949,7 @@ do
             end
         end)
         
-        flingSection:AddSlider(cfg.name.." Button Size", 5, 25, 11, function(value)
+        resetSection:AddSlider(cfg.name.." Button Size", 5, 25, 11, function(value)
             flingButtonSize = value / 100
             local btn = BindableButtons.Buttons[cfg.id]
             if btn then
@@ -943,35 +958,33 @@ do
             end
         end)
     end
-    
-    flingSection:AddPlayerDropdown("Add to Whitelist", function(p)
+
+    resetSection:AddPlayerDropdown("Add to Whitelist", function(p)
         if p and p ~= LocalPlayer then
             whitelist[p.UserId] = true
-            shared.Notify("Whitelist", p.Name.." added to whitelist", 3)
         end
     end)
-    
-    flingSection:AddButton("Clear Whitelist", function()
+
+    resetSection:AddButton("Clear Whitelist", function()
         whitelist = {}
-        shared.Notify("Whitelist", "Whitelist cleared!", 3)
     end)
-    
-    flingSection:AddToggle("Loop Fling Player(s)", function(s)
-        if maids.loopPlr then maids.loopPlr:DoCleaning() end
+
+    resetSection:AddToggle("Loop Reset Player(s)", function(s)
+        if maids.loopPlr then maids.loopPlr:Destroy() end
         
         if s then
             maids.loopPlr = Maid.new()
             local thread = task.spawn(function()
                 while true do
                     if flingSelPlr and flingSelPlr.Parent and not isWhitelisted(flingSelPlr) then
-                        OdhSkid(flingSelPlr, 2)
+                        resetPlayer(flingSelPlr)
                         task.wait(3)
                     end
                     
                     for _, player in ipairs(selectedPlayers) do
                         if player and player.Parent and not isWhitelisted(player) then
-                            OdhSkid(player, 2)
-                            task.wait(0.5)
+                            resetPlayer(player)
+                            task.wait(0.2)
                         end
                     end
                     task.wait(1)
@@ -980,25 +993,128 @@ do
             maids.loopPlr:GiveTask(function() task.cancel(thread) end)
         end
     end)
-    
-    flingSection:AddToggle("Loop Fling All", function(s)
-        if maids.loopAll then maids.loopAll:DoCleaning() end
+
+    resetSection:AddToggle("Loop Reset All", function(s)
+        if maids.loopAll then maids.loopAll:Destroy() end
         
         if s then
             maids.loopAll = Maid.new()
             local thread = task.spawn(function()
                 while true do
-                    for _, p in ipairs(Services.Players:GetPlayers()) do
-                        if p ~= LocalPlayer and p.Parent and not isWhitelisted(p) then
-                            OdhSkid(p, 2)
-                            task.wait(0.5)
+                    for _, p in ipairs(Players:GetPlayers()) do
+                        if p ~= LocalPlayer and not isWhitelisted(p) then
+                            local started = resetPlayer(p)
+                            if started then
+                                local timeout = tick() + 3
+                                while isResetting and tick() < timeout do
+                                    task.wait(0.1)
+                                end
+                                if isResetting then
+                                    isResetting = false
+                                    if currentResetConnection then
+                                        currentResetConnection:Disconnect()
+                                        currentResetConnection = nil
+                                    end
+                                end
+                            end
+                            task.wait(0.2)
                         end
                     end
-                    task.wait(3)
+                    task.wait(0.5)
                 end
             end)
-            maids.loopAll:GiveTask(function() task.cancel(thread) end)
+            maids.loopAll:GiveTask(function() 
+                task.cancel(thread)
+                isResetting = false
+                if currentResetConnection then
+                    currentResetConnection:Disconnect()
+                    currentResetConnection = nil
+                end
+            end)
+        else
+            if maids.loopAll then
+                maids.loopAll:Destroy()
+                maids.loopAll = nil
+            end
+            isResetting = false
+            if currentResetConnection then
+                currentResetConnection:Disconnect()
+                currentResetConnection = nil
+            end
         end
+    end)
+
+    resetSection:AddToggle("Click Reset", function(enabled)
+        clickFlingEnabled = enabled
+        
+        if maids.clickFling then maids.clickFling:Destroy() end
+        
+        if enabled then
+            maids.clickFling = Maid.new()
+            
+            local function onMouseClick(input, processed)
+                if processed then return end
+                
+                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                    local mouse = LocalPlayer:GetMouse()
+                    local target = mouse.Target
+                    
+                    if target then
+                        local character = target:FindFirstAncestorWhichIsA("Model")
+                        if character then
+                            local player = Players:GetPlayerFromCharacter(character)
+                            if player and player ~= LocalPlayer and not isWhitelisted(player) then
+                                resetPlayer(player)
+                            end
+                        end
+                    end
+                end
+            end
+            
+            if UserInputService.TouchEnabled then
+                maids.clickFling:GiveTask(UserInputService.TouchTap:Connect(onMouseClick))
+            end
+            
+            maids.clickFling:GiveTask(UserInputService.InputBegan:Connect(onMouseClick))
+        end
+    end)
+
+    resetSection:AddToggle("Reset Aura", function(enabled)
+        flingAuraEnabled = enabled
+        
+        if maids.flingAura then maids.flingAura:Destroy() end
+        
+        if enabled then
+            maids.flingAura = Maid.new()
+            local thread = task.spawn(function()
+                while flingAuraEnabled do
+                    task.wait(0.5)
+                    local character = LocalPlayer.Character
+                    local rootPart = character and character:FindFirstChild("HumanoidRootPart")
+                    
+                    if rootPart then
+                        for _, player in ipairs(Players:GetPlayers()) do
+                            if player ~= LocalPlayer and not isWhitelisted(player) then
+                                local targetChar = player.Character
+                                local targetRoot = targetChar and targetChar:FindFirstChild("HumanoidRootPart")
+                                
+                                if targetRoot and rootPart then
+                                    local distance = (rootPart.Position - targetRoot.Position).Magnitude
+                                    if distance <= auraStuds then
+                                        resetPlayer(player)
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
+            maids.flingAura:GiveTask(function() task.cancel(thread) end)
+        end
+    end)
+
+    resetSection:AddSlider("Aura Studs", 5, 50, 15, function(value)
+        auraStuds = value
     end)
 end
 
