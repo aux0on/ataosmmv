@@ -664,7 +664,7 @@ do
     local flingButtonSize = 0.11
     local clickFlingEnabled = false
     local flingAuraEnabled = false
-    local auraStuds = 15
+    local flingAuraStuds = 15
     local maids = {autoSheriff=nil, autoMurderer=nil, loopPlr=nil, loopAll=nil, clickFling=nil, flingAura=nil}
     local buttonToggles = {Sheriff=false, Murderer=false, Player=false}
     local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -1120,7 +1120,7 @@ do
                                 
                                 if targetRoot and rootPart then
                                     local distance = (rootPart.Position - targetRoot.Position).Magnitude
-                                    if distance <= auraStuds then
+                                    if distance <= flingAuraStuds then
                                         OdhSkid(player, 1)
                                     end
                                 end
@@ -1133,8 +1133,8 @@ do
         end
     end)
     
-    flingSection:AddSlider("Aura Studs", 5, 50, 15, function(value)
-        auraStuds = value
+    flingSection:AddSlider("Fling Aura Studs", 5, 50, 15, function(value)
+        flingAuraStuds = value
     end)
 end
 
