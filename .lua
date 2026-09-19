@@ -300,14 +300,16 @@ if not hiddenGui then
     RootMaid:GiveTask(hiddenGui)
 end
 
-local aboutSection = shared.AddSection("About")
+local ataos = shared.CreateTab("ATAOs", "/aux0on/AllTheAdd-OnsIcon/refs/heads/main/Untitled163_20260918192358")
+
+local aboutSection = ataos:AddSection("About")
 aboutSection:AddParagraph("ATAOs MMV", "is the version you are using.")
 aboutSection:AddToggle("Mute Button SFX", function(bool)
     muteButtonSounds = bool
     UpdateAllButtonSounds()
 end)
 
-local serverSection = shared.AddSection("Server Options")
+local serverSection = ataos:AddSection("Server Options")
 serverSection:AddLabel("Might Take a Few Tries")
 serverSection:AddButton("Rejoin", function()
     Services.TeleportService:TeleportToPlaceInstance(PlaceId, JobId, LocalPlayer)
@@ -395,7 +397,7 @@ serverSection:AddButton("Join Dead Server", function()
 end)
 
 local PlaySong = Services.ReplicatedStorage.Remotes.Inventory.PlaySong
-local radioSection = shared.AddSection("Radio Abuse")
+local radioSection = ataos:AddSection("Radio Abuse")
 local songSaveFile = "saved_songs.json"
 local savedSongs = {}
 if isfile and readfile and isfile(songSaveFile) then
@@ -479,7 +481,7 @@ radioSection:AddToggle("Auto Play Selected Audio", function(state)
 end)
 RootMaid:GiveTask(function() if RadioMaid then RadioMaid:DoCleaning() end end)
 
-local speedGlitchSection = shared.AddSection("Auto Speedglitch")
+local speedGlitchSection = ataos:AddSection("Auto Speedglitch")
 local asgEnabled = false
 local asgHorizontal = false
 local asgValue = 0
@@ -533,7 +535,7 @@ speedGlitchSection:AddToggle("Sideways Only", function(e) asgHorizontal = e end)
 speedGlitchSection:AddSlider("Speed (0-255)", 0, 255, 0, function(v) asgValue = v end)
 
 do
-    local mapVoterSection = shared.AddSection("Map Voter")
+    local mapVoterSection = ataos:AddSection("Map Voter")
     local voterRespawnAmount = 12
     local savedPos, isRespawning, vmButtonEnabled
     local vmButtonSize = 0.11
@@ -600,7 +602,7 @@ do
     end)
 end
 
-local whitelistSection = shared.AddSection("Kill All")
+local whitelistSection = ataos:AddSection("Kill All")
 local whitelist = {}
 whitelistSection:AddLabel("Ignores Whitelisted Players")
 whitelistSection:AddPlayerDropdown("Whitelist Player", function(p)
@@ -657,7 +659,7 @@ end)
 RootMaid:GiveTask(function() if KillAllMaid then KillAllMaid:DoCleaning() end end)
 
 do
-    local flingSection = shared.AddSection("Fling")
+    local flingSection = ataos:AddSection("Fling")
     local flingSelPlr, flingActive = nil, true
     local selectedPlayers = {}
     local whitelist = {}
@@ -1139,7 +1141,7 @@ do
 end
 
 do
-    local trollSection = shared.AddSection("Troll (FE)")
+    local trollSection = ataos:AddSection("Troll (FE)")
     trollSection:AddLabel("Play Troll Emotes")
     local trollButtonSize = 0.11
     
@@ -1213,7 +1215,7 @@ do
 end
 
 do
-    local rtxSection = shared.AddSection("RTX")
+    local rtxSection = ataos:AddSection("RTX")
     local rtx = {Sky=nil, Blur=nil, CC=nil, Bloom=nil, Sun=nil}
     local RTXMaid = nil
     RootMaid:GiveTask(function() if RTXMaid then RTXMaid:DoCleaning() end end)
@@ -1296,7 +1298,7 @@ do
 end
 
 do
-    local lsSection = shared.AddSection("Legit Speedglitch")
+    local lsSection = ataos:AddSection("Legit Speedglitch")
     local sideSpd = 0
     local lsHori = false
     local lsButtonSize = 0.11
@@ -1412,7 +1414,7 @@ do
 end
 
 do
-    local hlSection = shared.AddSection("FE Headless")
+    local hlSection = ataos:AddSection("FE Headless")
     hlSection:AddLabel("V2 & Higher Require a Very Small Head")
     local hlId = 78837807518622
     local hlId2 = 117080641351340
@@ -1504,7 +1506,7 @@ do
 end
 
 do
-    local perkSection = shared.AddSection("Perks")
+    local perkSection = ataos:AddSection("Perks")
     local hasteOn, blatantMode, hasteSpd = false, false, 18
     local PerkMaid
     
@@ -1554,7 +1556,7 @@ do
 end
 
 do
-    local wallhopSection = shared.AddSection("Wallhop")
+    local wallhopSection = ataos:AddSection("Wallhop")
     
     local UserInputService = game:GetService("UserInputService")
     local Players = game:GetService("Players")
@@ -1709,7 +1711,7 @@ do
 end
 
 do
-    local ssSection = shared.AddSection("Sign Spam")
+    local ssSection = ataos:AddSection("Sign Spam")
     local spamming = false
     local ssButtonEnabled = false
     local ssButtonSize = 0.11
@@ -1845,7 +1847,7 @@ do
     end)
 end
 
-local autoGGSection = shared.AddSection("Auto Grab Gun")
+local autoGGSection = ataos:AddSection("Auto Grab Gun")
 local autoGGEnabled = false
 local autoGGMaid = Maid.new()
 RootMaid:GiveTask(autoGGMaid)
@@ -2039,7 +2041,7 @@ local function createFpsPingGui()
     end)
 end
 
-local fps_ping_section = shared.AddSection("FPS & PING MONITOR")
+local fps_ping_section = ataos:AddSection("FPS & PING MONITOR")
 
 fps_ping_section:AddToggle("Enable Monitor UI", function(bool)
     if bool then
@@ -2067,8 +2069,6 @@ fps_ping_section:AddDropdown("UI Position", {
         applyPosition(_G.FpsLabel, _G.PingLabel, s)
     end
 end)
-
-fps_ping_section:AddParagraph("Skidded & Improved By:", "@lzzzx")
 
 local fpsBoostEnabled = false
 
@@ -2219,7 +2219,7 @@ local function removeFpsBoost()
     end
 end
 
-local ultra_fps_section = shared.AddSection("Light FPS Boost")
+local ultra_fps_section = ataos:AddSection("Light FPS Boost")
 
 ultra_fps_section:AddToggle("Enable Frame Enhancement", function(bool)
     fpsBoostEnabled = bool
@@ -2231,7 +2231,7 @@ ultra_fps_section:AddToggle("Enable Frame Enhancement", function(bool)
 end)
 
 do
-    local cameraSection = shared.AddSection("Camera Stretch")
+    local cameraSection = ataos:AddSection("Camera Stretch")
     cameraSection:AddLabel("Default values for horizontal and vertical are 0.80")
     
     local stretchHorizontal = 0.80
@@ -2353,7 +2353,7 @@ local function disableTrueAntiAfk()
     end
 end
 
-local true_antis_section = shared.AddSection("True Anti's")
+local true_antis_section = ataos:AddSection("True Anti's")
 true_antis_section:AddToggle("Enable IY Anti Fling", function(bool)
     trueAntiFlingEnabled = bool
     if bool then
@@ -2371,7 +2371,7 @@ true_antis_section:AddToggle("Enable True Anti AFK", function(bool)
     end
 end)
 
-local creditsSection = shared.AddSection("Credits")
+local creditsSection = ataos:AddSection("Credits")
 creditsSection:AddParagraph("@lzzzx", "Made this plugin, if you have requests feel free to ask.")
 
 shared.Notify("ATAOs ON TOP NIGGA", 5)
