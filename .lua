@@ -1,15 +1,12 @@
---[[local wjskea = odh_shared_plugins
-local wjjjw = wjskea.game_name
+local table_insert = table.insert
+local table_find = table.find
+local math_abs = math.abs
 
-if wjjjw ~= "Murder Mystery Modded" then
-    return
-end
-]]
 local Maid = {}
 Maid.__index = Maid
 
-function Maid.new()
-    return setmetatable({_tasks = {}, _destroyed = false}, Maid)
+function Maid.new() 
+    return setmetatable({_tasks = {}, _destroyed = false}, Maid) 
 end
 
 function Maid:GiveTask(task)
@@ -17,13 +14,13 @@ function Maid:GiveTask(task)
         self:_cleanupTask(task)
         return
     end
-    table.insert(self._tasks, task)
+    table_insert(self._tasks, task)
     return task
 end
 
 function Maid:GiveTasks(...)
-    for i = 1, select("#", ...) do
-        self:GiveTask((select(i, ...)))
+    for _, task in ipairs({...}) do
+        self:GiveTask(task)
     end
 end
 
@@ -43,14 +40,14 @@ end
 function Maid:DoCleaning()
     if self._destroyed then return end
     self._destroyed = true
-    for _, task in self._tasks do
+    for _, task in ipairs(self._tasks) do
         self:_cleanupTask(task)
     end
     self._tasks = {}
 end
 
-function Maid:Destroy()
-    self:DoCleaning()
+function Maid:Destroy() 
+    self:DoCleaning() 
 end
 
 local RootMaid = Maid.new()
@@ -70,8 +67,7 @@ local Services = {
     Lighting = game:GetService("Lighting"),
     MarketplaceService = game:GetService("MarketplaceService"),
     StarterGui = game:GetService("StarterGui"),
-    CoreGui = game:GetService("CoreGui"),
-    Stats = game:GetService("Stats")
+    CoreGui = game:GetService("CoreGui")
 }
 
 local LocalPlayer = Services.Players.LocalPlayer
@@ -79,6 +75,7 @@ local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 local PlaceId = game.PlaceId
 local JobId = game.JobId
 
+local __INSERT = table.insert
 local __PCLR = Color3.new
 local __RGB = Color3.fromRGB
 local __UD2 = UDim2.new
@@ -100,17 +97,17 @@ local __TS   = getfserv("TweenService")
 
 local muteButtonSounds = false
 
-local BindableButtons = {Buttons = {}, Maids = {}, Count = 0}
-
 local function UpdateAllButtonSounds()
     local volume = muteButtonSounds and 0 or 0.5
-    for id, btn in BindableButtons.Buttons do
+    for id, btn in pairs(BindableButtons.Buttons) do
         local sound = btn:FindFirstChild("Sound")
         if sound then
             sound.Volume = volume
         end
     end
 end
+
+local BindableButtons = {Buttons = {}, Maids = {}, Count = 0}
 
 local __SHAPES = {
     [0] = "rbxassetid://86221076925479",
@@ -159,15 +156,7 @@ end
 local function Bind_MakeDraggable(gui, maid, ripple, sound, clickFunc)
     local dragging, dragInput, dragStart, startPos
     local hasMoved = false
-    local rel
-    local rippleTweenInfo = TweenInfo.new(0.4, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
-    local rippleGoal = {Size = __UD2(0, 45, 0, 45), BackgroundTransparency = 1}
-    local zeroSize = __UD2(0, 0, 0, 0)
-
-    maid:GiveTask(function()
-        if rel then rel:Disconnect() rel = nil end
-    end)
-
+    
     maid:GiveTask(gui.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging, dragStart, startPos = true, input.Position, gui.Position
@@ -175,30 +164,33 @@ local function Bind_MakeDraggable(gui, maid, ripple, sound, clickFunc)
             sound:Play()
             local absPos = gui.AbsolutePosition
             ripple.Position = __UD2(0, input.Position.X - absPos.X, 0, input.Position.Y - absPos.Y)
-            ripple.Size = zeroSize
+            ripple.Size = __UD2(0, 0, 0, 0)
             ripple.BackgroundTransparency = 0.5
             ripple.Visible = true
-            __TS:Create(ripple, rippleTweenInfo, rippleGoal):Play()
+            __TS:Create(ripple, TweenInfo.new(0.4, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
+                Size = __UD2(0, 45, 0, 45),
+                BackgroundTransparency = 1
+            }):Play()
 
-            if rel then rel:Disconnect() rel = nil end
+            local rel
             rel = __UIS.InputEnded:Connect(function(endInput)
                 if endInput.UserInputType == input.UserInputType then
                     dragging = false
                     if not hasMoved then
                         bind_safecallback(clickFunc)
                     end
-                    if rel then rel:Disconnect() rel = nil end
+                    rel:Disconnect()
                 end
             end)
         end
     end))
-
+    
     maid:GiveTask(gui.InputChanged:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
             dragInput = input
         end
     end))
-
+    
     maid:GiveTask(__UIS.InputChanged:Connect(function(input)
         if input == dragInput and dragging then
             local delta = input.Position - dragStart
@@ -209,45 +201,9 @@ local function Bind_MakeDraggable(gui, maid, ripple, sound, clickFunc)
     end))
 end
 
-local strokeSpinners = setmetatable({}, {__mode = "k"})
-local strokeSpinnerConn = nil
-
-local function strokeSpinStep()
-    local any = false
-    for stroke, rot in strokeSpinners do
-        any = true
-        rot = (rot + 1) % 360
-        strokeSpinners[stroke] = rot
-        stroke.Rotation = rot
-    end
-    if not any and strokeSpinnerConn then
-        strokeSpinnerConn:Disconnect()
-        strokeSpinnerConn = nil
-    end
-end
-
-local function addStrokeSpinner(stroke)
-    strokeSpinners[stroke] = 0
-    if not strokeSpinnerConn then
-        strokeSpinnerConn = __RS.RenderStepped:Connect(strokeSpinStep)
-    end
-end
-
-local function removeStrokeSpinner(stroke)
-    strokeSpinners[stroke] = nil
-end
-
-RootMaid:GiveTask(function()
-    if strokeSpinnerConn then
-        strokeSpinnerConn:Disconnect()
-        strokeSpinnerConn = nil
-    end
-    table.clear(strokeSpinners)
-end)
-
 function BindableButtons.AddBButton(id, text, clickFunc)
     if BindableButtons.Buttons[id] then return end
-
+    
     local buttonMaid = Maid.new()
     local camera = workspace.CurrentCamera
     local screen = camera.ViewportSize
@@ -269,7 +225,7 @@ function BindableButtons.AddBButton(id, text, clickFunc)
     ImageButton.Parent = Bind_GetStorage()
     buttonMaid:GiveTask(ImageButton)
 
-    local TextLabel = Instance.new("TextLabel")
+    local TextLabel = Instance.new("TextLabel", ImageButton)
     TextLabel.Name = "@Text"
     TextLabel.Size = __UD2(0.8, 0, 0.8, 0)
     TextLabel.Position = __UD2(0.5, 0, 0.5, 0)
@@ -281,17 +237,14 @@ function BindableButtons.AddBButton(id, text, clickFunc)
     TextLabel.TextSize = 10
     TextLabel.TextWrapped = true
     TextLabel.ZIndex = 3
-    TextLabel.Parent = ImageButton
 
-    local Aspect = Instance.new("UIAspectRatioConstraint")
+    local Aspect = Instance.new("UIAspectRatioConstraint", ImageButton)
     Aspect.AspectRatio = 1
     Aspect.AspectType = Enum.AspectType.ScaleWithParentSize
-    Aspect.Parent = ImageButton
 
-    local Stroke = Instance.new("UIGradient")
+    local Stroke = Instance.new("UIGradient", ImageButton)
     Stroke.Name = "@Stroke"
     Stroke.Color = __NORMAL_COLOR
-    Stroke.Parent = ImageButton
 
     local ripple = Instance.new("Frame")
     ripple.Name = "@ripple"
@@ -302,10 +255,7 @@ function BindableButtons.AddBButton(id, text, clickFunc)
     ripple.Visible = false
     ripple.ZIndex = 2
     ripple.Parent = ImageButton
-
-    local rippleCorner = Instance.new("UICorner")
-    rippleCorner.CornerRadius = __UD(1, 0)
-    rippleCorner.Parent = ripple
+    Instance.new("UICorner", ripple).CornerRadius = __UD(1, 0)
 
     local sound = Instance.new("Sound")
     sound.SoundId = "rbxassetid://3868133279"
@@ -313,8 +263,9 @@ function BindableButtons.AddBButton(id, text, clickFunc)
     sound.Parent = ImageButton
 
     Bind_MakeDraggable(ImageButton, buttonMaid, ripple, sound, clickFunc)
-    addStrokeSpinner(Stroke)
-    buttonMaid:GiveTask(function() removeStrokeSpinner(Stroke) end)
+    buttonMaid:GiveTask(__RS.RenderStepped:Connect(function()
+        Stroke.Rotation = (Stroke.Rotation + 1) % 360
+    end))
 
     BindableButtons.Buttons[id] = ImageButton
     BindableButtons.Maids[id] = buttonMaid
@@ -370,7 +321,7 @@ serverSection:AddButton("Server Hop", function()
     end)
     if success and servers and servers.data and #servers.data > 0 then
         local available = {}
-        for _, server in servers.data do
+        for _, server in ipairs(servers.data) do
             if server.id ~= JobId and server.playing < server.maxPlayers then
                 table.insert(available, server)
             end
@@ -394,7 +345,7 @@ serverSection:AddButton("Join Full Server", function()
             return Services.HttpService:JSONDecode(game:HttpGet(url))
         end)
         if success and response and response.data then
-            for _, server in response.data do
+            for _, server in ipairs(response.data) do
                 if server.id ~= JobId and server.playing < server.maxPlayers then
                     if not bestServer or server.playing > bestServer.playing then
                         bestServer = server
@@ -406,7 +357,7 @@ serverSection:AddButton("Join Full Server", function()
             cursor = nil
         end
     until not cursor or bestServer
-
+    
     if bestServer then
         shared.Notify("Joining full server...", 2)
         Services.TeleportService:TeleportToPlaceInstance(PlaceId, bestServer.id, LocalPlayer)
@@ -423,7 +374,7 @@ serverSection:AddButton("Join Dead Server", function()
             return Services.HttpService:JSONDecode(game:HttpGet(url))
         end)
         if success and result and result.data then
-            for _, server in result.data do
+            for _, server in ipairs(result.data) do
                 if server.id ~= JobId and server.playing > 0 then
                     if not lowestCount or server.playing < lowestCount then
                         lowestCount = server.playing
@@ -457,24 +408,14 @@ local function saveSongs()
     if writefile then writefile(songSaveFile, Services.HttpService:JSONEncode(savedSongs)) end
 end
 local function getSongNames()
-    local names = table.create(#savedSongs)
-    for i, song in savedSongs do names[i] = song.name or song.id end
+    local names = {}
+    for _, song in ipairs(savedSongs) do table.insert(names, song.name or song.id) end
     return names
 end
 local songDropdown
 local lastSelectedSong = nil
-
-local function setSongItems(items)
-    local dd = songDropdown
-    if not dd then return end
-    if dd.ChangeItems then
-        dd:ChangeItems(items)
-    elseif dd.Change then
-        dd.Change(items)
-    end
-end
 songDropdown = radioSection:AddDropdown("Saved Songs", getSongNames(), function(selectedName)
-    for _, song in savedSongs do
+    for _, song in ipairs(savedSongs) do
         if song.name == selectedName then
             lastSelectedSong = song
             PlaySong:FireServer("https://www.roblox.com/asset/?id=" .. song.id)
@@ -488,7 +429,7 @@ radioSection:AddButton("Replay Audio", function()
         task.wait(0.1)
         PlaySong:FireServer("https://www.roblox.com/asset/?id=" .. lastSelectedSong.id)
     else
-        shared.Notify("No audio selected!", 0)
+        shared.Notify("No audio selected!", 2)
     end
 end)
 radioSection:AddTextBox("Add Audio ID", function(text)
@@ -498,19 +439,19 @@ radioSection:AddTextBox("Add Audio ID", function(text)
         local name = (success and info and info.Name) or id
         table.insert(savedSongs, {name = name, id = id})
         saveSongs()
-        setSongItems(getSongNames())
+        songDropdown.Change(getSongNames())
         shared.Notify("Added: " .. name, 2)
     else
-        shared.Notify("Invalid audio ID!", 1)
+        shared.Notify("Invalid audio ID!", 2)
     end
 end)
 radioSection:AddButton("Delete Selected Audio", function()
     if lastSelectedSong then
-        for i, song in savedSongs do
+        for i, song in ipairs(savedSongs) do
             if song.name == lastSelectedSong.name then
                 table.remove(savedSongs, i)
                 saveSongs()
-                setSongItems(getSongNames())
+                songDropdown.Change(getSongNames())
                 shared.Notify("Removed: " .. lastSelectedSong.name, 2)
                 lastSelectedSong = nil
                 return
@@ -529,7 +470,7 @@ end
 radioSection:AddToggle("Auto Play Selected Audio", function(state)
     if RadioMaid then RadioMaid:DoCleaning() RadioMaid = nil end
     autoPlayEnabled = state
-
+    
     if autoPlayEnabled then
         RadioMaid = Maid.new()
         RadioMaid:GiveTask(LocalPlayer.CharacterAdded:Connect(function()
@@ -559,37 +500,6 @@ local function asgCharSetup(c)
     end
 end
 
-local function asgStep()
-    if not asgEnabled or not asgChar or not asgHum or not asgRoot then return end
-
-    local targetSpeed = defaultSpeed + asgValue
-    if isInAir then
-        if asgHorizontal then
-            if math.abs(asgHum.MoveDirection:Dot(asgRoot.CFrame.RightVector)) > 0.5 then
-                asgHum.WalkSpeed = targetSpeed
-            else
-                asgHum.WalkSpeed = defaultSpeed
-            end
-        else
-            asgHum.WalkSpeed = targetSpeed
-        end
-    else
-        asgHum.WalkSpeed = defaultSpeed
-    end
-end
-
-local asgStepConn = nil
-local function asgSyncStepConnection()
-    local uis = Services.UserInputService
-    local want = uis.TouchEnabled and not uis.KeyboardEnabled
-    if want and not asgStepConn then
-        asgStepConn = Services.RunService.Stepped:Connect(asgStep)
-    elseif not want and asgStepConn then
-        asgStepConn:Disconnect()
-        asgStepConn = nil
-    end
-end
-
 speedGlitchSection:AddToggle("Enable ASG", function(e)
     if SpeedGlitchMaid then SpeedGlitchMaid:DoCleaning() SpeedGlitchMaid = nil end
     asgEnabled = e
@@ -597,15 +507,26 @@ speedGlitchSection:AddToggle("Enable ASG", function(e)
         SpeedGlitchMaid = Maid.new()
         if LocalPlayer.Character then asgCharSetup(LocalPlayer.Character) end
         SpeedGlitchMaid:GiveTask(LocalPlayer.CharacterAdded:Connect(asgCharSetup))
-
-        SpeedGlitchMaid:GiveTask(function()
-            if asgStepConn then asgStepConn:Disconnect() asgStepConn = nil end
-        end)
-        asgSyncStepConnection()
-        SpeedGlitchMaid:GiveTasks(
-            Services.UserInputService:GetPropertyChangedSignal("TouchEnabled"):Connect(asgSyncStepConnection),
-            Services.UserInputService:GetPropertyChangedSignal("KeyboardEnabled"):Connect(asgSyncStepConnection)
-        )
+        
+        SpeedGlitchMaid:GiveTask(Services.RunService.Stepped:Connect(function()
+            if not (Services.UserInputService.TouchEnabled and not Services.UserInputService.KeyboardEnabled) then return end
+            if not asgEnabled or not asgChar or not asgHum or not asgRoot then return end
+            
+            local targetSpeed = defaultSpeed + asgValue
+            if isInAir then
+                if asgHorizontal then
+                    if math.abs(asgHum.MoveDirection:Dot(asgRoot.CFrame.RightVector)) > 0.5 then
+                        asgHum.WalkSpeed = targetSpeed
+                    else
+                        asgHum.WalkSpeed = defaultSpeed
+                    end
+                else
+                    asgHum.WalkSpeed = targetSpeed
+                end
+            else
+                asgHum.WalkSpeed = defaultSpeed
+            end
+        end))
     end
 end)
 RootMaid:GiveTask(function() if SpeedGlitchMaid then SpeedGlitchMaid:DoCleaning() end end)
@@ -618,19 +539,19 @@ do
     local voterRespawnAmount = 12
     local savedPos, isRespawning, vmButtonEnabled
     local vmButtonSize = 0.11
-
+    
     local function voteMap()
-        if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-            shared.Notify("Error: Character not found", 1)
-            return
+        if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then 
+            shared.Notify("Error", "Character not found", 3)
+            return 
         end
-
+        
         savedPos = LocalPlayer.Character.HumanoidRootPart.Position
         isRespawning = true
         local count = 0
-
-        shared.Notify("Vote Map: Starting "..voterRespawnAmount.." respawns...", 3)
-
+        
+        shared.Notify("Vote Map", "Starting "..voterRespawnAmount.." respawns...", 3)
+        
         task.spawn(function()
             while count < voterRespawnAmount and isRespawning do
                 if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
@@ -641,9 +562,9 @@ do
             end
             isRespawning = false
             savedPos = nil
-            shared.Notify("Vote Map: Completed "..count.." votes!", 3)
+            shared.Notify("Vote Map", "Completed "..count.." votes!", 3)
         end)
-
+        
         local respawnCon = LocalPlayer.CharacterAdded:Connect(function(char)
             if savedPos then
                 char:WaitForChild("HumanoidRootPart").CFrame = CFrame.new(savedPos)
@@ -652,13 +573,13 @@ do
             end
         end)
     end
-
+    
     mapVoterSection:AddSlider("Votes Amount", 1, 20, voterRespawnAmount, function(v) voterRespawnAmount = v end)
     mapVoterSection:AddButton("Vote Map", voteMap)
-
+    
     mapVoterSection:AddToggle("Enable VM Button", function(enabled)
         vmButtonEnabled = enabled
-
+        
         if enabled then
             BindableButtons.AddBButton("vm_bind", "VM", voteMap)
             local btn = BindableButtons.Buttons["vm_bind"]
@@ -670,7 +591,7 @@ do
             BindableButtons.DeleteBButton("vm_bind")
         end
     end)
-
+    
     mapVoterSection:AddSlider("VM Button Size", 5, 25, 11, function(value)
         vmButtonSize = value / 100
         local btn = BindableButtons.Buttons["vm_bind"]
@@ -685,8 +606,8 @@ local whitelistSection = ataos:AddSection("Kill All")
 local whitelist = {}
 whitelistSection:AddLabel("Ignores Whitelisted Players")
 whitelistSection:AddPlayerDropdown("Whitelist Player", function(p)
-    if not table.find(whitelist, p.UserId) then
-        table.insert(whitelist, p.UserId)
+    if not table_find(whitelist, p.UserId) then
+        table_insert(whitelist, p.UserId)
         shared.Notify(p.Name .. " whitelisted.", 2)
     end
 end)
@@ -700,65 +621,37 @@ whitelistSection:AddButton("Kill All", function()
     if KillAllMaid then KillAllMaid:DoCleaning() KillAllMaid = nil end
     local bp = LocalPlayer:FindFirstChild("Backpack")
     local knife = (bp and bp:FindFirstChild("Knife"))
-    if not knife then return shared.Notify("Knife not found!", 1) end
-
+    if not knife then return shared.Notify("Knife not found!", 2) end
+    
     KillAllMaid = Maid.new()
-    local myChar = LocalPlayer.Character
-    knife.Parent = myChar
-    local root = myChar:FindFirstChild("HumanoidRootPart")
+    knife.Parent = LocalPlayer.Character
+    local root = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     if not root then return end
-
+    
     local offset = -2
-    local offsetCF = CFrame.new(0, 0, offset)
     local targets = {}
-
-    for _, p in Services.Players:GetPlayers() do
-        if p ~= LocalPlayer and not table.find(whitelist, p.UserId) and p.Character and p.Character.PrimaryPart then
-            table.insert(targets, p.Character)
+    
+    for _, p in pairs(Services.Players:GetPlayers()) do
+        if p ~= LocalPlayer and not table_find(whitelist, p.UserId) and p.Character and p.Character.PrimaryPart then
+            table_insert(targets, p.Character)
         end
     end
-
-    local function collectParts(model)
-        local list = table.create(24)
-        local n = 0
-        for _, d in model:GetDescendants() do
-            if d:IsA("BasePart") then
-                n += 1
-                list[n] = d
-            end
-        end
-        return list
-    end
-
-    local myParts = collectParts(myChar)
-    local targetParts = table.create(#targets)
-    for i, c in targets do targetParts[i] = collectParts(c) end
-
+    
     local start = tick()
-    local nextScan = start + 0.25
-
     KillAllMaid:GiveTask(Services.RunService.RenderStepped:Connect(function()
-        local now = tick()
-        if now - start > 3 then
+        if tick() - start > 3 then
             if KillAllMaid then KillAllMaid:DoCleaning() KillAllMaid = nil end
-            for _, p in myChar:GetDescendants() do if p:IsA("BasePart") and not p.CanCollide then p.CanCollide = true end end
-            for _, c in targets do for _, p in c:GetDescendants() do if p:IsA("BasePart") and not p.CanCollide then p.CanCollide = true end end end
+            for _, p in pairs(LocalPlayer.Character:GetDescendants()) do if p:IsA("BasePart") then p.CanCollide = true end end
+            for _, c in pairs(targets) do for _, p in pairs(c:GetDescendants()) do if p:IsA("BasePart") then p.CanCollide = true end end end
             return
         end
-
-        if now >= nextScan then
-            nextScan = now + 0.25
-            myParts = collectParts(myChar)
-            for i, c in targets do targetParts[i] = collectParts(c) end
-        end
-
-        for _, p in myParts do if p.CanCollide then p.CanCollide = false end end
-
-        local rootCF = root.CFrame * offsetCF
-        for i, c in targets do
+        
+        for _, p in pairs(LocalPlayer.Character:GetDescendants()) do if p:IsA("BasePart") then p.CanCollide = false end end
+        
+        for _, c in pairs(targets) do
             if c.PrimaryPart then
-                c:SetPrimaryPartCFrame(rootCF)
-                for _, p in targetParts[i] do if p.CanCollide then p.CanCollide = false end end
+                c:SetPrimaryPartCFrame(root.CFrame * CFrame.new(0, 0, offset))
+                for _, p in pairs(c:GetDescendants()) do if p:IsA("BasePart") then p.CanCollide = false end end
             end
         end
     end))
@@ -781,130 +674,121 @@ do
     local LocalPlayer = Players.LocalPlayer
     local UserInputService = game:GetService("UserInputService")
     local RunService = game:GetService("RunService")
-
-    RootMaid:GiveTask(function()
-        for _, m in maids do if m then m:Destroy() end end
+    
+    RootMaid:GiveTask(function() 
+        for _, m in pairs(maids) do if m then m:Destroy() end end
     end)
-
+    
     local function isWhitelisted(player)
         return whitelist[player.UserId] == true
     end
-
+    
     local function isPlayerSelected(player)
-        for _, selected in selectedPlayers do
+        for _, selected in ipairs(selectedPlayers) do
             if selected.UserId == player.UserId then
                 return true
             end
         end
         return false
     end
-
-    local roleRemote = nil
-
-    local function invokeRoleRemote(remote)
-        return remote:InvokeServer()
-    end
-
-    local function getRoleData()
-        if not roleRemote or not roleRemote.Parent then
+    
+    local function findSheriff()
+        local success, roleData = pcall(function()
             local remote = ReplicatedStorage:FindFirstChild("GetPlayerData", true)
-            roleRemote = (remote and remote:IsA("RemoteFunction")) and remote or nil
-        end
-        if not roleRemote then return nil end
-        local success, data = pcall(invokeRoleRemote, roleRemote)
-        if success then return data end
-        return nil
-    end
-
-    local function findByRole(role)
-        local roleData = getRoleData()
-        if not roleData then return nil end
-        for playerName, data in roleData do
-            if data.Role == role and not data.Killed and not data.Dead then
-                local p = Players:FindFirstChild(playerName)
-                if p and not isWhitelisted(p) then return p end
+            if remote and remote:IsA("RemoteFunction") then
+                return remote:InvokeServer()
+            end
+        end)
+        if success and roleData then
+            for playerName, data in pairs(roleData) do
+                if data.Role == "Sheriff" and not data.Killed and not data.Dead then
+                    local p = Players:FindFirstChild(playerName)
+                    if p and not isWhitelisted(p) then return p end
+                end
             end
         end
         return nil
     end
-
-    local function findSheriff()
-        return findByRole("Sheriff")
-    end
-
+    
     local function findMurderer()
-        return findByRole("Murderer")
-    end
-
-    local GUN_WORDS = {"gun", "pistol", "revolver", "shotgun", "rifle", "weapon"}
-
-    local function isGunTool(tool)
-        if not tool:IsA("Tool") then return false end
-        local name = string.lower(tool.Name)
-        for _, word in GUN_WORDS do
-            if string.find(name, word, 1, true) then return true end
+        local success, roleData = pcall(function()
+            local remote = ReplicatedStorage:FindFirstChild("GetPlayerData", true)
+            if remote and remote:IsA("RemoteFunction") then
+                return remote:InvokeServer()
+            end
+        end)
+        if success and roleData then
+            for playerName, data in pairs(roleData) do
+                if data.Role == "Murderer" and not data.Killed and not data.Dead then
+                    local p = Players:FindFirstChild(playerName)
+                    if p and not isWhitelisted(p) then return p end
+                end
+            end
         end
-        return false
+        return nil
     end
-
+    
     local function hasGun(player)
         local character = player.Character
         if not character then return false end
-
-        local backpack = player:FindFirstChildOfClass("Backpack")
-        if backpack then
-            for _, tool in backpack:GetChildren() do
-                if isGunTool(tool) then return true end
+        
+        local tools = player.Backpack:GetChildren()
+        for _, tool in ipairs(tools) do
+            if tool:IsA("Tool") and (tool.Name:lower():find("gun") or tool.Name:lower():find("pistol") or 
+               tool.Name:lower():find("revolver") or tool.Name:lower():find("shotgun") or
+               tool.Name:lower():find("rifle") or tool.Name:lower():find("weapon")) then
+                return true
             end
         end
-
-        for _, tool in character:GetChildren() do
-            if isGunTool(tool) then return true end
+        
+        local characterTools = character:GetChildren()
+        for _, tool in ipairs(characterTools) do
+            if tool:IsA("Tool") and (tool.Name:lower():find("gun") or tool.Name:lower():find("pistol") or 
+               tool.Name:lower():find("revolver") or tool.Name:lower():find("shotgun") or
+               tool.Name:lower():find("rifle") or tool.Name:lower():find("weapon")) then
+                return true
+            end
         end
-
+        
         return false
     end
-
+    
     local function findSheriffWithFallback()
         local sheriff = findSheriff()
         if sheriff then return sheriff end
-
-        for _, player in Players:GetPlayers() do
+        
+        for _, player in ipairs(Players:GetPlayers()) do
             if player ~= LocalPlayer and not isWhitelisted(player) and hasGun(player) then
                 return player
             end
         end
-
+        
         return nil
     end
-
-    local ODHSKID_LIFT = CFrame.new(0, 0.5, 0)
-    local ODHSKID_ZERO_VEC = Vector3.new()
-
+    
     local function OdhSkid(TargetPlayer, duration)
         if isWhitelisted(TargetPlayer) then
-            shared.Notify("Whitelist: "..TargetPlayer.Name.." is whitelisted!", 0)
+            Notify("Whitelist", TargetPlayer.Name.." is whitelisted!", 3)
             return
         end
-
+        
         local Character = LocalPlayer.Character
         local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
         local RootPart = Humanoid and Humanoid.RootPart
         local TCharacter = TargetPlayer.Character
-
+        
         if not (Character and Humanoid and RootPart and TCharacter) then return end
-
+        
         local THumanoid = TCharacter:FindFirstChildOfClass("Humanoid")
         local TRootPart = THumanoid and THumanoid.RootPart
         local THead = TCharacter:FindFirstChild("Head")
         local Accessory = TCharacter:FindFirstChildOfClass("Accessory")
         local Handle = Accessory and Accessory:FindFirstChild("Handle")
-
-        local genv = getgenv()
+        
         if RootPart.Velocity.Magnitude < 50 then
-            genv.OldPos = RootPart.CFrame
+            getgenv().OldPos = RootPart.CFrame
         end
-
+        
         if THead then
             workspace.CurrentCamera.CameraSubject = THead
         elseif not THead and Handle then
@@ -912,28 +796,28 @@ do
         elseif THumanoid and TRootPart then
             workspace.CurrentCamera.CameraSubject = THumanoid
         end
-
+        
         if not TCharacter:FindFirstChildWhichIsA("BasePart") then
             return
         end
-
+        
         local FPos = function(BasePart, Pos, Ang)
             RootPart.CFrame = CFrame.new(BasePart.Position) * Pos * Ang
             Character:SetPrimaryPartCFrame(CFrame.new(BasePart.Position) * Pos * Ang)
             RootPart.Velocity = Vector3.new(9e7, 9e7 * 10, 9e7)
             RootPart.RotVelocity = Vector3.new(9e8, 9e8, 9e8)
         end
-
+        
         local SFBasePart = function(BasePart)
             local TimeToWait = duration or 2
             local Time = tick()
             local Angle = 0
-
+            
             repeat
                 if RootPart and THumanoid then
                     if BasePart.Velocity.Magnitude < 50 then
                         Angle = Angle + 100
-
+                        
                         FPos(BasePart, CFrame.new(0, 1.5, 0) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle),0 ,0))
                         task.wait()
                         FPos(BasePart, CFrame.new(0, -1.5, 0) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0))
@@ -973,18 +857,18 @@ do
                 end
             until not flingActive or BasePart.Velocity.Magnitude > 500 or BasePart.Parent ~= TargetPlayer.Character or TargetPlayer.Parent ~= Players or not TargetPlayer.Character == TCharacter or THumanoid.Sit or tick() > Time + TimeToWait
         end
-
+        
         local previousDestroyHeight = workspace.FallenPartsDestroyHeight
         workspace.FallenPartsDestroyHeight = 0/0
-
+        
         local BV = Instance.new("BodyVelocity")
         BV.Name = "EpixVel"
         BV.Parent = RootPart
         BV.Velocity = Vector3.new(9e8, 9e8, 9e8)
         BV.MaxForce = Vector3.new(1/0, 1/0, 1/0)
-
+        
         Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
-
+        
         if TRootPart and THead then
             if (TRootPart.CFrame.p - THead.CFrame.p).Magnitude > 5 then
                 SFBasePart(THead)
@@ -998,73 +882,70 @@ do
         elseif not TRootPart and not THead and Accessory and Handle then
             SFBasePart(Handle)
         end
-
+        
         BV:Destroy()
         Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
         workspace.CurrentCamera.CameraSubject = Humanoid
-
+        
         repeat
-            local oldPos = genv.OldPos
-            if Character and Humanoid and RootPart and oldPos then
-                local recovered = oldPos * ODHSKID_LIFT
-                RootPart.CFrame = recovered
-                Character:SetPrimaryPartCFrame(recovered)
+            if Character and Humanoid and RootPart and getgenv().OldPos then
+                RootPart.CFrame = getgenv().OldPos * CFrame.new(0, .5, 0)
+                Character:SetPrimaryPartCFrame(getgenv().OldPos * CFrame.new(0, .5, 0))
                 Humanoid:ChangeState("GettingUp")
-                for _, x in Character:GetChildren() do
+                for _, x in ipairs(Character:GetChildren()) do
                     if x:IsA("BasePart") then
-                        x.Velocity, x.RotVelocity = ODHSKID_ZERO_VEC, ODHSKID_ZERO_VEC
+                        x.Velocity, x.RotVelocity = Vector3.new(), Vector3.new()
                     end
                 end
             end
             task.wait()
-            oldPos = genv.OldPos
-        until not flingActive or (RootPart and oldPos and (RootPart.Position - oldPos.p).Magnitude < 25)
-
+        until not flingActive or (RootPart and getgenv().OldPos and (RootPart.Position - getgenv().OldPos.p).Magnitude < 25)
+        
         workspace.FallenPartsDestroyHeight = previousDestroyHeight
     end
-
+    
     flingSection:AddButton("Fling Sheriff", function()
         local target = findSheriffWithFallback()
-        if target then OdhSkid(target, 2) else shared.Notify("Error: No Sheriff or Gun Holder Found", 1) end
+        if target then OdhSkid(target, 2) else Notify("Error", "No Sheriff or Gun Holder Found", 3) end
     end)
-
+    
     flingSection:AddButton("Fling Murderer", function()
         local murderer = findMurderer()
-        if murderer then OdhSkid(murderer, 2) else shared.Notify("Error: No Murderer Found", 1) end
+        if murderer then OdhSkid(murderer, 2) else Notify("Error", "No Murderer Found", 3) end
     end)
-
+    
     flingSection:AddButton("Fling All", function()
-        for _, p in Players:GetPlayers() do
+        for _, p in ipairs(Players:GetPlayers()) do
             if p ~= LocalPlayer and not isWhitelisted(p) then
                 OdhSkid(p, 2)
                 task.wait(0.5)
             end
         end
     end)
-
+    
     flingSection:AddPlayerDropdown("Fling Player", function(p)
         flingSelPlr = p
         if p ~= LocalPlayer and not isWhitelisted(p) then OdhSkid(p, 2) end
     end)
-
+    
     flingSection:AddPlayerDropdown("Select Players", function(p)
         if p and p ~= LocalPlayer and not isPlayerSelected(p) then
             table.insert(selectedPlayers, p)
-            shared.Notify("Selected: "..p.Name.." added to fling list", 3)
+            Notify("Selected", p.Name.." added to fling list", 3)
         elseif p and isPlayerSelected(p) then
-            shared.Notify("Error: "..p.Name.." is already selected", 1)
+            Notify("Error", p.Name.." is already selected", 3)
         end
     end)
-
+    
     flingSection:AddButton("Clear Selected Players", function()
         selectedPlayers = {}
-        shared.Notify("Cleared: All selected players removed", 2)
+        Notify("Cleared", "All selected players removed", 3)
     end)
-
+    
     local function createAutoFling(name, findFunc)
         flingSection:AddToggle("Auto Fling "..name, function(enabled)
             if maids["auto"..name] then maids["auto"..name]:Destroy() end
-
+            
             if enabled then
                 maids["auto"..name] = Maid.new()
                 local thread = task.spawn(function()
@@ -1081,28 +962,28 @@ do
             end
         end)
     end
-
+    
     createAutoFling("Sheriff", findSheriffWithFallback)
     createAutoFling("Murderer", findMurderer)
-
+    
     local buttonConfigs = {
         {name="Sheriff", text="FS", findFunc=findSheriffWithFallback, id="fling_sheriff"},
         {name="Murderer", text="FM", findFunc=findMurderer, id="fling_murderer"},
         {name="Player", text="FP", findFunc=function() return flingSelPlr end, id="fling_player"}
     }
-
-    for _, cfg in buttonConfigs do
+    
+    for _, cfg in ipairs(buttonConfigs) do
         flingSection:AddToggle("Enable "..cfg.text.." Button", function(enabled)
             buttonToggles[cfg.name] = enabled
-
+            
             if enabled then
                 BindableButtons.AddBButton(cfg.id, cfg.text, function()
                     local target = cfg.findFunc()
                     if target then
                         OdhSkid(target, 2)
-                        shared.Notify("Success: Flinging "..cfg.name..": "..target.Name, 2)
+                        Notify("Success", "Flinging "..cfg.name..": "..target.Name, 2)
                     else
-                        shared.Notify("Error: No "..cfg.name.." Found", 1)
+                        Notify("Error", "No "..cfg.name.." Found", 3)
                     end
                 end)
                 local btn = BindableButtons.Buttons[cfg.id]
@@ -1114,7 +995,7 @@ do
                 BindableButtons.DeleteBButton(cfg.id)
             end
         end)
-
+        
         flingSection:AddSlider(cfg.name.." Button Size", 5, 25, 11, function(value)
             flingButtonSize = value / 100
             local btn = BindableButtons.Buttons[cfg.id]
@@ -1124,22 +1005,22 @@ do
             end
         end)
     end
-
+    
     flingSection:AddPlayerDropdown("Add to Whitelist", function(p)
         if p and p ~= LocalPlayer then
             whitelist[p.UserId] = true
-            shared.Notify("Whitelist: "..p.Name.." added to whitelist", 2)
+            Notify("Whitelist", p.Name.." added to whitelist", 3)
         end
     end)
-
+    
     flingSection:AddButton("Clear Whitelist", function()
         whitelist = {}
-        shared.Notify("Whitelist: Whitelist cleared!", 2)
+        Notify("Whitelist", "Whitelist cleared!", 3)
     end)
-
+    
     flingSection:AddToggle("Loop Fling Player(s)", function(s)
         if maids.loopPlr then maids.loopPlr:Destroy() end
-
+        
         if s then
             maids.loopPlr = Maid.new()
             local thread = task.spawn(function()
@@ -1148,8 +1029,8 @@ do
                         OdhSkid(flingSelPlr, 2)
                         task.wait(3)
                     end
-
-                    for _, player in selectedPlayers do
+                    
+                    for _, player in ipairs(selectedPlayers) do
                         if player and player.Parent and not isWhitelisted(player) then
                             OdhSkid(player, 2)
                             task.wait(0.5)
@@ -1161,15 +1042,15 @@ do
             maids.loopPlr:GiveTask(function() task.cancel(thread) end)
         end
     end)
-
+    
     flingSection:AddToggle("Loop Fling All", function(s)
         if maids.loopAll then maids.loopAll:Destroy() end
-
+        
         if s then
             maids.loopAll = Maid.new()
             local thread = task.spawn(function()
                 while true do
-                    for _, p in Players:GetPlayers() do
+                    for _, p in ipairs(Players:GetPlayers()) do
                         if p ~= LocalPlayer and p.Parent and not isWhitelisted(p) then
                             OdhSkid(p, 2)
                             task.wait(0.5)
@@ -1181,50 +1062,50 @@ do
             maids.loopAll:GiveTask(function() task.cancel(thread) end)
         end
     end)
-
+    
     flingSection:AddToggle("Click Fling", function(enabled)
         clickFlingEnabled = enabled
-
+        
         if maids.clickFling then maids.clickFling:Destroy() end
-
+        
         if enabled then
             maids.clickFling = Maid.new()
-
+            
             local function onMouseClick(input, processed)
                 if processed then return end
-
+                
                 if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                     local mouse = LocalPlayer:GetMouse()
                     local target = mouse.Target
-
+                    
                     if target then
                         local character = target:FindFirstAncestorWhichIsA("Model")
                         if character then
                             local player = Players:GetPlayerFromCharacter(character)
                             if player and player ~= LocalPlayer and not isWhitelisted(player) then
                                 OdhSkid(player, 2)
-                                shared.Notify("Click Fling: Flinging "..player.Name, 2)
+                                Notify("Click Fling", "Flinging "..player.Name, 2)
                             elseif player and isWhitelisted(player) then
-                                shared.Notify("Click Fling: "..player.Name.." is whitelisted!", 0)
+                                Notify("Click Fling", player.Name.." is whitelisted!", 3)
                             end
                         end
                     end
                 end
             end
-
+            
             if UserInputService.TouchEnabled then
                 maids.clickFling:GiveTask(UserInputService.TouchTap:Connect(onMouseClick))
             end
-
+            
             maids.clickFling:GiveTask(UserInputService.InputBegan:Connect(onMouseClick))
         end
     end)
-
+    
     flingSection:AddToggle("Fling Aura", function(enabled)
         flingAuraEnabled = enabled
-
+        
         if maids.flingAura then maids.flingAura:Destroy() end
-
+        
         if enabled then
             maids.flingAura = Maid.new()
             local thread = task.spawn(function()
@@ -1232,13 +1113,13 @@ do
                     task.wait(0.5)
                     local character = LocalPlayer.Character
                     local rootPart = character and character:FindFirstChild("HumanoidRootPart")
-
+                    
                     if rootPart then
-                        for _, player in Players:GetPlayers() do
+                        for _, player in ipairs(Players:GetPlayers()) do
                             if player ~= LocalPlayer and not isWhitelisted(player) then
                                 local targetChar = player.Character
                                 local targetRoot = targetChar and targetChar:FindFirstChild("HumanoidRootPart")
-
+                                
                                 if targetRoot and rootPart then
                                     local distance = (rootPart.Position - targetRoot.Position).Magnitude
                                     if distance <= flingAuraStuds then
@@ -1253,7 +1134,7 @@ do
             maids.flingAura:GiveTask(function() task.cancel(thread) end)
         end
     end)
-
+    
     flingSection:AddSlider("Fling Aura Studs", 5, 50, 15, function(value)
         flingAuraStuds = value
     end)
@@ -1263,10 +1144,10 @@ do
     local trollSection = ataos:AddSection("Troll (FE)")
     trollSection:AddLabel("Play Troll Emotes")
     local trollButtonSize = 0.11
-
+    
     local function makeEmote(eid, txt, gn)
         local playing, track, EmoteMaid
-
+        
         local function stopEmote()
             if track then track:Stop() track = nil end
             playing = false
@@ -1275,24 +1156,24 @@ do
                 if ani then ani.Disabled = false end
             end
         end
-
+        
         local function play()
             if playing then return end
             local c = LocalPlayer.Character
             local h = c and c:FindFirstChild("Humanoid")
             if not h then return end
-
+            
             local ani = c:FindFirstChild("Animate")
             if ani then ani.Disabled = true end
-            for _, t in h:GetPlayingAnimationTracks() do t:Stop() end
-
+            for _, t in pairs(h:GetPlayingAnimationTracks()) do t:Stop() end
+            
             local a = Instance.new("Animation")
             a.AnimationId = "rbxassetid://"..eid
             track = h:LoadAnimation(a)
             track.Priority = Enum.AnimationPriority.Action
             track:Play()
             playing = true
-
+            
             local tempMaid = Maid.new()
             tempMaid:GiveTasks(
                 h.Running:Connect(function(s) if s > 0 then stopEmote() tempMaid:Destroy() end end),
@@ -1300,11 +1181,11 @@ do
                 track.Stopped:Connect(function() stopEmote() tempMaid:Destroy() end)
             )
         end
-
+        
         trollSection:AddToggle("Enable "..txt.." Button", function(e)
             if EmoteMaid then EmoteMaid:Destroy() EmoteMaid = nil end
             BindableButtons.DeleteBButton(gn)
-
+            
             if e then
                 EmoteMaid = Maid.new()
                 BindableButtons.AddBButton(gn, txt, play)
@@ -1315,7 +1196,7 @@ do
                 end
             end
         end)
-
+        
         RootMaid:GiveTask(function() if EmoteMaid then EmoteMaid:Destroy() end end)
         trollSection:AddSlider(txt.." Button Size", 5, 25, 11, function(value)
             trollButtonSize = value / 100
@@ -1327,7 +1208,7 @@ do
         end)
         trollSection:AddButton("Play "..txt.." Emote", play)
     end
-
+    
     makeEmote("84112287597268", "FD", "EmoteGUI_FakeDead")
     makeEmote("122366279755346", "KS", "EmoteGUI_KnifeSwing")
     makeEmote("103788740211648", "DS", "EmoteGUI_DualSwing")
@@ -1338,7 +1219,7 @@ do
     local rtx = {Sky=nil, Blur=nil, CC=nil, Bloom=nil, Sun=nil}
     local RTXMaid = nil
     RootMaid:GiveTask(function() if RTXMaid then RTXMaid:DoCleaning() end end)
-
+    
     local function createRtxEffects()
         if not rtx.Sky then
             rtx.Sky = Instance.new("Sky")
@@ -1353,7 +1234,7 @@ do
             rtx.Sky.Parent = Services.Lighting
             if RTXMaid then RTXMaid:GiveTask(rtx.Sky) end
         end
-
+        
         if not rtx.Bloom then
             rtx.Bloom = Instance.new("BloomEffect")
             rtx.Bloom.Intensity = 0.3
@@ -1362,14 +1243,14 @@ do
             rtx.Bloom.Parent = Services.Lighting
             if RTXMaid then RTXMaid:GiveTask(rtx.Bloom) end
         end
-
+        
         if not rtx.Blur then
             rtx.Blur = Instance.new("BlurEffect")
             rtx.Blur.Size = 5
             rtx.Blur.Parent = Services.Lighting
             if RTXMaid then RTXMaid:GiveTask(rtx.Blur) end
         end
-
+        
         if not rtx.CC then
             rtx.CC = Instance.new("ColorCorrectionEffect")
             rtx.CC.Brightness = 0
@@ -1379,7 +1260,7 @@ do
             rtx.CC.Parent = Services.Lighting
             if RTXMaid then RTXMaid:GiveTask(rtx.CC) end
         end
-
+        
         if not rtx.Sun then
             rtx.Sun = Instance.new("SunRaysEffect")
             rtx.Sun.Intensity = 0.1
@@ -1388,15 +1269,15 @@ do
             if RTXMaid then RTXMaid:GiveTask(rtx.Sun) end
         end
     end
-
+    
     local function setRtx(enabled)
         if RTXMaid then RTXMaid:DoCleaning() RTXMaid = nil end
-
+        
         if enabled then
             RTXMaid = Maid.new()
             rtx = {Sky=nil, Blur=nil, CC=nil, Bloom=nil, Sun=nil}
             createRtxEffects()
-
+            
             Services.Lighting.Brightness = 2.25
             Services.Lighting.ExposureCompensation = 0.1
             Services.Lighting.ClockTime = 17.55
@@ -1404,15 +1285,15 @@ do
                  Services.Lighting.Brightness = 2
                  Services.Lighting.ExposureCompensation = 0
             end)
-
-            for _, v in rtx do
-                if v and v:IsA("PostEffect") then v.Enabled = true end
+            
+            for _, v in pairs(rtx) do
+                if v then v.Enabled = true end
             end
         else
             rtx = {Sky=nil, Blur=nil, CC=nil, Bloom=nil, Sun=nil}
         end
     end
-
+    
     rtxSection:AddToggle("Enable RTX", setRtx)
 end
 
@@ -1428,30 +1309,30 @@ do
     local LegitSpeedMaid = nil
     local lsBindButton = nil
     local lsButtonStroke = nil
-    local lsChar, lsHum, lsRoot = nil, nil, nil
-
+    
     RootMaid:GiveTask(function() if LegitSpeedMaid then LegitSpeedMaid:DoCleaning() end end)
-
-    local LS_COLOR_ON = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 255, 0)),
-        ColorSequenceKeypoint.new(0.6, Color3.fromRGB(0, 200, 0)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 150, 0))
-    })
-    local LS_COLOR_OFF = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 0, 0)),
-        ColorSequenceKeypoint.new(0.6, Color3.fromRGB(200, 0, 0)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(150, 0, 0))
-    })
-
+    
     local function UpdateButtonColor()
         if not lsBindButton or not lsButtonStroke then return end
-        lsButtonStroke.Color = emOn and LS_COLOR_ON or LS_COLOR_OFF
+        if emOn then
+            lsButtonStroke.Color = ColorSequence.new({
+                ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 255, 0)),
+                ColorSequenceKeypoint.new(0.6, Color3.fromRGB(0, 200, 0)),
+                ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 150, 0))
+            })
+        else
+            lsButtonStroke.Color = ColorSequence.new({
+                ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 0, 0)),
+                ColorSequenceKeypoint.new(0.6, Color3.fromRGB(200, 0, 0)),
+                ColorSequenceKeypoint.new(1, Color3.fromRGB(150, 0, 0))
+            })
+        end
     end
-
+    
     local function playE(id)
         local h = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid")
         if not h then return end
-
+        
         local success = pcall(function() h:PlayEmoteAndGetAnimTrackById(id) end)
         if not success then
             local a = Instance.new("Animation")
@@ -1459,23 +1340,23 @@ do
             h:LoadAnimation(a):Play()
         end
     end
-
+    
     lsSection:AddToggle("Enable SG Bindable Button", function(e)
         if LegitSpeedMaid then LegitSpeedMaid:DoCleaning() LegitSpeedMaid = nil end
         BindableButtons.DeleteBButton("sg_bind")
         lsBindButton = nil
         lsButtonStroke = nil
         emOn = false
-
+        
         if e then
             LegitSpeedMaid = Maid.new()
-
+            
             BindableButtons.AddBButton("sg_bind", "SG", function()
                 emOn = not emOn
-                if emOn and selEmote then
-                    playE(selEmote)
-                elseif not emOn and LocalPlayer.Character then
-                    LocalPlayer.Character.Humanoid.WalkSpeed = 16
+                if emOn and selEmote then 
+                    playE(selEmote) 
+                elseif not emOn and LocalPlayer.Character then 
+                    LocalPlayer.Character.Humanoid.WalkSpeed = 16 
                 end
                 UpdateButtonColor()
             end)
@@ -1486,25 +1367,17 @@ do
                 lsButtonStroke = lsBindButton:FindFirstChild("@Stroke")
                 UpdateButtonColor()
             end
-
+            
             LegitSpeedMaid:GiveTask(Services.RunService.Stepped:Connect(function()
-                if not emOn then return end
-
-                local c = LocalPlayer.Character
-                if c ~= lsChar then
-                    lsChar, lsHum, lsRoot = c, nil, nil
-                end
-                if not c then return end
-                if not lsHum then lsHum = c:FindFirstChild("Humanoid") end
-                if not lsRoot then lsRoot = c:FindFirstChild("HumanoidRootPart") end
-                local h, r = lsHum, lsRoot
+                if not emOn or not LocalPlayer.Character then return end
+                local h = LocalPlayer.Character:FindFirstChild("Humanoid")
+                local r = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
                 if not h or not r then return end
-
-                local state = h:GetState()
-                local lsAir = state == Enum.HumanoidStateType.Freefall or state == Enum.HumanoidStateType.Jumping
-
+                
+                local lsAir = h:GetState() == Enum.HumanoidStateType.Freefall or h:GetState() == Enum.HumanoidStateType.Jumping
+                local spd = 16 + sideSpd
+                
                 if lsAir then
-                    local spd = 16 + sideSpd
                     if lsHori then
                         h.WalkSpeed = (math.abs(h.MoveDirection:Dot(r.CFrame.RightVector)) > 0.5) and spd or 16
                     else
@@ -1516,7 +1389,7 @@ do
             end))
         end
     end)
-
+    
     lsSection:AddSlider("Speed (0-255)", 0, 255, sideSpd, function(v) sideSpd = v end)
     lsSection:AddSlider("Button Size", 5, 25, 11, function(value)
         lsButtonSize = value / 100
@@ -1526,13 +1399,13 @@ do
         end
     end)
     lsSection:AddToggle("Sideways Only", function(e) lsHori = e end)
-
+    
     lsSection:AddDropdown("SG Select Emote", {"Moonwalk", "Yungblud", "Bouncy Twirl", "Flex Walk", "Custom"}, function(s)
         lsDropdownTouched = true
         lsSelectedEmoteName = s
         selEmote = (s ~= "Custom") and emotes[s] or nil
     end)
-
+    
     lsSection:AddTextBox("SG Custom Emote ID", function(t)
         if lsDropdownTouched and lsSelectedEmoteName == "Custom" and t ~= "" then
             selEmote = t
@@ -1546,102 +1419,89 @@ do
     local hlId = 78837807518622
     local hlId2 = 117080641351340
     local hlId3 = 136055001302601
-
-    local hl1 = {maid = nil}
-    local hl2 = {maid = nil}
-    local hl3 = {maid = nil}
-
-    local function stopHl(st)
-        if st.conn then st.conn:Disconnect() st.conn = nil end
-        if st.track then
-            local t = st.track
-            st.track = nil
-            t:Stop()
-            t:Destroy()
-        end
-        if st.anim then st.anim:Destroy() st.anim = nil end
-    end
-
-    local function playHl(hum, id, st)
-        local maid = st.maid
-        if not maid or maid._destroyed then return end
+    
+    local HeadlessMaid1 = nil
+    local HeadlessMaid2 = nil
+    local HeadlessMaid3 = nil
+    RootMaid:GiveTask(function() 
+        if HeadlessMaid1 then HeadlessMaid1:DoCleaning() end 
+        if HeadlessMaid2 then HeadlessMaid2:DoCleaning() end
+        if HeadlessMaid3 then HeadlessMaid3:DoCleaning() end
+    end)
+    
+    local function playHl(hum, id, maid)
         if not hum or not hum.Parent then return end
         local ani = hum:FindFirstChildOfClass("Animator")
         if not ani then return end
-
-        stopHl(st)
-
+        
         local a = Instance.new("Animation")
         a.AnimationId = "rbxassetid://"..id
         local hlTrack = ani:LoadAnimation(a)
         hlTrack.Priority = Enum.AnimationPriority.Action
         hlTrack.Looped = true
         hlTrack:Play()
-        st.anim, st.track = a, hlTrack
-
-        st.conn = hlTrack.Stopped:Connect(function()
-            if not st.maid or st.maid._destroyed then return end
-            if hum.Parent then task.wait(0.1) playHl(hum, id, st) end
-        end)
+        maid:GiveTask(function() hlTrack:Stop() hlTrack:Destroy() end)
+        
+        maid:GiveTask(hlTrack.Stopped:Connect(function()
+            if maid._destroyed then return end
+            if hum.Parent then task.wait(0.1) playHl(hum, id, maid) end
+        end))
     end
-
-    local function applyFreeze(hum, id, st)
-
-        if st.freeze then st.freeze:Disconnect() st.freeze = nil end
-        st.freeze = hum.StateChanged:Connect(function()
-            local maid = st.maid
-            if not maid or maid._destroyed then return end
+    
+    local function applyFreeze(hum, id, maid)
+        maid:GiveTask(hum.StateChanged:Connect(function()
+            if maid._destroyed then return end
             if hum.Parent then
                 task.wait(0.05)
-                if not st.maid or st.maid._destroyed then return end
-                if hum.Parent then playHl(hum, id, st) end
+                if maid._destroyed then return end
+                if hum.Parent then playHl(hum, id, maid) end
             end
-        end)
+        end))
     end
-
-    local function enableHl(id, st)
+    
+    local function enableHl(id, maid)
         local c = LocalPlayer.Character
         if not c then return end
         local h = c:FindFirstChild("Humanoid")
         if not h then return end
-        applyFreeze(h, id, st)
-        playHl(h, id, st)
+        applyFreeze(h, id, maid)
+        playHl(h, id, maid)
     end
-
-    local function setHeadless(st, id, enabled)
-        if st.maid then st.maid:DoCleaning() st.maid = nil end
-        if st.freeze then st.freeze:Disconnect() st.freeze = nil end
-        stopHl(st)
-        if not enabled then return end
-
-        st.maid = Maid.new()
-        st.maid:GiveTask(function()
-            if st.freeze then st.freeze:Disconnect() st.freeze = nil end
-            stopHl(st)
-        end)
-        enableHl(id, st)
-        st.maid:GiveTask(LocalPlayer.CharacterAdded:Connect(function(c)
-            task.wait(0.5)
-            enableHl(id, st)
-        end))
-    end
-
-    RootMaid:GiveTask(function()
-        setHeadless(hl1, hlId, false)
-        setHeadless(hl2, hlId2, false)
-        setHeadless(hl3, hlId3, false)
-    end)
-
+    
     hlSection:AddToggle("Enable Headless", function(s)
-        setHeadless(hl1, hlId, s)
+        if HeadlessMaid1 then HeadlessMaid1:DoCleaning() HeadlessMaid1 = nil end
+        if s then
+            HeadlessMaid1 = Maid.new()
+            enableHl(hlId, HeadlessMaid1)
+            HeadlessMaid1:GiveTask(LocalPlayer.CharacterAdded:Connect(function(c)
+                task.wait(0.5)
+                enableHl(hlId, HeadlessMaid1)
+            end))
+        end
     end)
-
+    
     hlSection:AddToggle("Enable Headless V2", function(s)
-        setHeadless(hl2, hlId2, s)
+        if HeadlessMaid2 then HeadlessMaid2:DoCleaning() HeadlessMaid2 = nil end
+        if s then
+            HeadlessMaid2 = Maid.new()
+            enableHl(hlId2, HeadlessMaid2)
+            HeadlessMaid2:GiveTask(LocalPlayer.CharacterAdded:Connect(function(c)
+                task.wait(0.5)
+                enableHl(hlId2, HeadlessMaid2)
+            end))
+        end
     end)
-
+    
     hlSection:AddToggle("Enable Headless V3", function(s)
-        setHeadless(hl3, hlId3, s)
+        if HeadlessMaid3 then HeadlessMaid3:DoCleaning() HeadlessMaid3 = nil end
+        if s then
+            HeadlessMaid3 = Maid.new()
+            enableHl(hlId3, HeadlessMaid3)
+            HeadlessMaid3:GiveTask(LocalPlayer.CharacterAdded:Connect(function(c)
+                task.wait(0.5)
+                enableHl(hlId3, HeadlessMaid3)
+            end))
+        end
     end)
 end
 
@@ -1649,23 +1509,23 @@ do
     local perkSection = ataos:AddSection("Perks")
     local hasteOn, blatantMode, hasteSpd = false, false, 18
     local PerkMaid
-
+    
     RootMaid:GiveTask(function() if PerkMaid then PerkMaid:Destroy() end end)
-
+    
     local function updSpd()
         if not hasteOn then return end
         local c = LocalPlayer.Character
         local h = c and c:FindFirstChild("Humanoid")
         if not h then return end
-        local knifeInChar = c:FindFirstChild("Knife")
-        h.WalkSpeed = (knifeInChar or (LocalPlayer.Backpack:FindFirstChild("Knife") and knifeInChar))
+        
+        h.WalkSpeed = (c:FindFirstChild("Knife") or (LocalPlayer.Backpack:FindFirstChild("Knife") and c:FindFirstChild("Knife"))) 
             and hasteSpd or 16
     end
-
-    perkSection:AddToggle("Enable Auto Haste", function(s)
-        hasteOn = s
+    
+    perkSection:AddToggle("Enable Auto Haste", function(s) 
+        hasteOn = s 
         if PerkMaid then PerkMaid:Destroy() end
-
+        
         if s then
             PerkMaid = Maid.new()
             PerkMaid:GiveTask(LocalPlayer.CharacterAdded:Connect(function(c)
@@ -1674,7 +1534,7 @@ do
                 task.wait(0.5)
                 updSpd()
             end))
-
+            
             if LocalPlayer.Character then
                 PerkMaid:GiveTasks(
                     LocalPlayer.Character.ChildAdded:Connect(updSpd),
@@ -1686,7 +1546,7 @@ do
             LocalPlayer.Character.Humanoid.WalkSpeed = 16
         end
     end)
-
+    
     perkSection:AddToggle("Enable Blatant Mode", function(s)
         blatantMode = s
         hasteSpd = blatantMode and 19 or 18
@@ -1697,14 +1557,14 @@ end
 
 do
     local wallhopSection = ataos:AddSection("Wallhop")
-
+    
     local UserInputService = game:GetService("UserInputService")
     local Players = game:GetService("Players")
     local Workspace = game:GetService("Workspace")
     local RunService = game:GetService("RunService")
-
+    
     local player = Players.LocalPlayer
-
+    
     local wallhopToggle = false
     local flickEnabled = false
     local InfiniteJumpEnabled = true
@@ -1712,19 +1572,19 @@ do
     raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
     local WallhopMaid = nil
     RootMaid:GiveTask(function() if WallhopMaid then WallhopMaid:DoCleaning() end end)
-
+    
     local function getWallRaycastResult()
         local character = player.Character
         if not character then return nil end
         local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
         if not humanoidRootPart then return nil end
-
+    
         raycastParams.FilterDescendantsInstances = {character}
         local detectionDistance = 2
         local closestHit = nil
         local minDistance = detectionDistance + 1
         local hrpCF = humanoidRootPart.CFrame
-
+    
         for i = 0, 7 do
             local angle = math.rad(i * 45)
             local direction = (hrpCF * CFrame.Angles(0, angle, 0)).LookVector
@@ -1734,34 +1594,34 @@ do
                 closestHit = ray
             end
         end
-
+    
         local blockCastSize = Vector3.new(1.5, 1, 0.5)
         local blockCastOffset = CFrame.new(0, -1, -0.5)
         local blockCastOriginCF = hrpCF * blockCastOffset
         local blockCastDirection = hrpCF.LookVector
         local blockCastDistance = 1.5
         local blockResult = Workspace:Blockcast(blockCastOriginCF, blockCastSize, blockCastDirection * blockCastDistance, raycastParams)
-
+    
         if blockResult and blockResult.Instance and blockResult.Distance < minDistance then
             minDistance = blockResult.Distance
             closestHit = blockResult
         end
-
+    
         return closestHit
     end
-
+    
     local function executeWallJump(wallRayResult)
         if not InfiniteJumpEnabled then return end
-
+    
         local character = player.Character
         local humanoid = character and character:FindFirstChildOfClass("Humanoid")
         local rootPart = character and character:FindFirstChild("HumanoidRootPart")
         local camera = Workspace.CurrentCamera
-
+    
         if not (humanoid and rootPart and camera and humanoid:GetState() ~= Enum.HumanoidStateType.Dead and wallRayResult) then
             return
         end
-
+    
         InfiniteJumpEnabled = false
 
         if flickEnabled then
@@ -1827,16 +1687,16 @@ do
         task.wait(0.1)
         InfiniteJumpEnabled = true
     end
-
+    
     wallhopSection:AddToggle("Enable Wallhop", function(enabled)
         if WallhopMaid then WallhopMaid:DoCleaning() WallhopMaid = nil end
         wallhopToggle = enabled
-
+        
         if enabled then
             WallhopMaid = Maid.new()
             WallhopMaid:GiveTask(UserInputService.JumpRequest:Connect(function()
                 if not wallhopToggle then return end
-
+                
                 local wallRayResult = getWallRaycastResult()
                 if wallRayResult then
                     executeWallJump(wallRayResult)
@@ -1858,45 +1718,41 @@ do
     local autoGetGG = false
     local SignSpamMaid = nil
     local SignSpamAutoMaid = nil
-
+    
     RootMaid:GiveTask(function()
         if SignSpamMaid then SignSpamMaid:DoCleaning() end
         if SignSpamAutoMaid then SignSpamAutoMaid:DoCleaning() end
     end)
-
+    
     local function getSign()
         pcall(function()
             Services.ReplicatedStorage.Remotes.Extras.ReplicateToy:InvokeServer("GGSign")
         end)
     end
-
-    local function isSignTool(tool)
-        return tool:IsA("Tool") and string.find(string.lower(tool.Name), "sign", 1, true) ~= nil
-    end
-
+    
     local function findInBackpack()
         local backpack = LocalPlayer:WaitForChild("Backpack")
-        for _, tool in backpack:GetChildren() do
-            if isSignTool(tool) then
+        for _, tool in ipairs(backpack:GetChildren()) do
+            if tool:IsA("Tool") and string.lower(tool.Name):find("sign") then
                 return true
             end
         end
         return false
     end
-
-    local function findSign(backpack)
-        backpack = backpack or LocalPlayer:WaitForChild("Backpack")
+    
+    local function findSign()
+        local backpack = LocalPlayer:WaitForChild("Backpack")
         local character = LocalPlayer.Character
 
-        for _, tool in backpack:GetChildren() do
-            if isSignTool(tool) then
+        for _, tool in ipairs(backpack:GetChildren()) do
+            if tool:IsA("Tool") and string.lower(tool.Name):find("sign") then
                 return tool, backpack
             end
         end
 
         if character then
-            for _, tool in character:GetChildren() do
-                if isSignTool(tool) then
+            for _, tool in ipairs(character:GetChildren()) do
+                if tool:IsA("Tool") and string.lower(tool.Name):find("sign") then
                     return tool, character
                 end
             end
@@ -1904,15 +1760,13 @@ do
 
         return nil, nil
     end
-
+    
     local function startSpam()
         spamming = true
         if SignSpamMaid then SignSpamMaid:DoCleaning() SignSpamMaid = nil end
         SignSpamMaid = Maid.new()
-
+        
         local thread = task.spawn(function()
-
-            local backpack = LocalPlayer:WaitForChild("Backpack")
             while spamming do
                 local character = LocalPlayer.Character
                 if not character then task.wait(0.1) continue end
@@ -1920,15 +1774,10 @@ do
                 local humanoid = character:FindFirstChildOfClass("Humanoid")
                 if not humanoid then task.wait(0.1) continue end
 
-                if not backpack or backpack.Parent ~= LocalPlayer then
-                    backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
-                    if not backpack then task.wait(0.1) continue end
-                end
-
-                local tool, location = findSign(backpack)
+                local tool, location = findSign()
 
                 if tool then
-                    if location == backpack then
+                    if location == LocalPlayer:WaitForChild("Backpack") then
                         humanoid:EquipTool(tool)
                     end
                     task.wait(0.05)
@@ -1941,7 +1790,7 @@ do
         end)
         SignSpamMaid:GiveTask(function() task.cancel(thread) end)
     end
-
+    
     local function stopSpam()
         spamming = false
         if SignSpamMaid then SignSpamMaid:DoCleaning() SignSpamMaid = nil end
@@ -1951,7 +1800,7 @@ do
             if humanoid then humanoid:UnequipTools() end
         end
     end
-
+    
     ssSection:AddToggle("Enable Auto-Get GG", function(state)
         if SignSpamAutoMaid then SignSpamAutoMaid:DoCleaning() SignSpamAutoMaid = nil end
         autoGetGG = state
@@ -1966,14 +1815,14 @@ do
             end))
         end
     end)
-
+    
     ssSection:AddToggle("Enable Sign Spam", function(state)
         if state then startSpam() else stopSpam() end
     end)
-
+    
     ssSection:AddToggle("Enable SS Button", function(enabled)
         ssButtonEnabled = enabled
-
+        
         if enabled then
             BindableButtons.AddBButton("ss_bind", "SS", function()
                 if spamming then stopSpam() else startSpam() end
@@ -1987,7 +1836,7 @@ do
             BindableButtons.DeleteBButton("ss_bind")
         end
     end)
-
+    
     ssSection:AddSlider("SS Button Size", 5, 25, 11, function(value)
         ssButtonSize = value / 100
         local btn = BindableButtons.Buttons["ss_bind"]
@@ -2000,31 +1849,18 @@ end
 
 local autoGGSection = ataos:AddSection("Auto Grab Gun")
 local autoGGEnabled = false
-
-local autoGGMaid = nil
-RootMaid:GiveTask(function() if autoGGMaid then autoGGMaid:DoCleaning() end end)
+local autoGGMaid = Maid.new()
+RootMaid:GiveTask(autoGGMaid)
 
 local function touch(a, b)
     firetouchinterest(a, b, 0)
     firetouchinterest(a, b, 1)
 end
 
-local function findGunDrop()
-    local hit = workspace:FindFirstChild("GunDrop", true)
-    if not hit then return nil end
-    if hit:IsA("BasePart") then return hit end
-    for _, obj in workspace:GetDescendants() do
-        if obj.Name == "GunDrop" and obj:IsA("BasePart") then
-            return obj
-        end
-    end
-    return nil
-end
-
-local function bringGun(gunDrop)
+local function bringGun()
     local character = LocalPlayer.Character
     local rootPart = character and character:FindFirstChild("HumanoidRootPart")
-    gunDrop = gunDrop or findGunDrop()
+    local gunDrop = workspace:FindFirstChild("GunDrop", true)
     if rootPart and gunDrop then
         touch(rootPart, gunDrop)
     end
@@ -2034,14 +1870,14 @@ local function hasGunInInventory()
     local char = LocalPlayer.Character
     local backpack = LocalPlayer.Backpack
     if char then
-        for _, tool in char:GetChildren() do
+        for _, tool in pairs(char:GetChildren()) do
             if tool:IsA("Tool") and tool.Name == "Gun" then
                 return true
             end
         end
     end
     if backpack then
-        for _, tool in backpack:GetChildren() do
+        for _, tool in pairs(backpack:GetChildren()) do
             if tool:IsA("Tool") and tool.Name == "Gun" then
                 return true
             end
@@ -2050,36 +1886,34 @@ local function hasGunInInventory()
     return false
 end
 
-local function grabGun(gunDrop)
-    gunDrop = gunDrop or findGunDrop()
-    if not gunDrop then return false end
+local function gunDropExists()
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj.Name == "GunDrop" and obj:IsA("BasePart") then
+            return true
+        end
+    end
+    return false
+end
+
+local function grabGun()
+    if not gunDropExists() then return false end
     if hasGunInInventory() then return true end
-    bringGun(gunDrop)
+    bringGun()
     task.wait(0.5)
     return hasGunInInventory()
 end
 
 autoGGSection:AddToggle("Enable Auto GG", function(enabled)
     autoGGEnabled = enabled
-    if autoGGMaid then autoGGMaid:DoCleaning() autoGGMaid = nil end
+    autoGGMaid:DoCleaning()
     if enabled then
-        autoGGMaid = Maid.new()
-        local thread = task.spawn(function()
+        task.spawn(function()
             while autoGGEnabled do
-                if LocalPlayer.Character then
-
-                    local gunDrop = findGunDrop()
-                    if gunDrop and not hasGunInInventory() then
-                        grabGun(gunDrop)
-                    end
+                if LocalPlayer.Character and gunDropExists() and not hasGunInInventory() then
+                    grabGun()
                 end
                 task.wait(0.5)
             end
-        end)
-
-        autoGGMaid:GiveTask(function()
-            autoGGEnabled = false
-            pcall(task.cancel, thread)
         end)
     end
 end)
@@ -2095,33 +1929,29 @@ local positionPresets = {
     ["Bottom Left"]  = UDim2.new(0.02, 0, 0.85, 0),
 }
 
-local STAT_GOOD  = Color3.fromRGB(0, 255, 0)
-local STAT_OKAY  = Color3.fromRGB(255, 200, 0)
-local STAT_BAD   = Color3.fromRGB(255, 0, 0)
-local STAT_PLAIN = Color3.fromRGB(255, 255, 255)
-
 local function getFpsCap()
     local cap = workspace:GetAttribute("FPSCap") or 60
     return cap
 end
 
-local function getFpsColor(fps, cap)
+local function getFpsColor(fps)
+    local cap = getFpsCap()
     if fps >= cap * 0.85 then
-        return STAT_GOOD
+        return Color3.fromRGB(0, 255, 0)
     elseif fps >= cap * 0.5 then
-        return STAT_OKAY
+        return Color3.fromRGB(255, 200, 0)
     else
-        return STAT_BAD
+        return Color3.fromRGB(255, 0, 0)
     end
 end
 
 local function getPingColor(ping)
     if ping <= 80 then
-        return STAT_GOOD
+        return Color3.fromRGB(0, 255, 0)
     elseif ping <= 150 then
-        return STAT_OKAY
+        return Color3.fromRGB(255, 200, 0)
     else
-        return STAT_BAD
+        return Color3.fromRGB(255, 0, 0)
     end
 end
 
@@ -2144,45 +1974,41 @@ local function createFpsPingGui()
     local Ping = Instance.new("TextLabel")
 
     ScreenGui.Name = "FpsPingMonitor"
+    ScreenGui.Parent = game.CoreGui
     ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-
-    Fps.BackgroundTransparency = 1
-    Fps.Size = UDim2.new(0, 120, 0, 25)
-    Fps.Font = Enum.Font.SourceSans
-    Fps.TextColor3 = STAT_PLAIN
-    Fps.TextScaled = true
-    Fps.Text = "0"
-    Fps.Parent = ScreenGui
-
-    Ping.BackgroundTransparency = 1
-    Ping.Size = UDim2.new(0, 120, 0, 25)
-    Ping.Font = Enum.Font.SourceSans
-    Ping.TextColor3 = STAT_PLAIN
-    Ping.TextScaled = true
-    Ping.Text = "0"
-    Ping.Parent = ScreenGui
-
-    applyPosition(Fps, Ping, uiPosition)
-
-    ScreenGui.Parent = Services.CoreGui
     _G.FpsPingGui = ScreenGui
     _G.FpsLabel = Fps
     _G.PingLabel = Ping
 
-    local Stats = Services.Stats
+    Fps.Parent = ScreenGui
+    Fps.BackgroundTransparency = 1
+    Fps.Size = UDim2.new(0, 120, 0, 25)
+    Fps.Font = Enum.Font.SourceSans
+    Fps.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Fps.TextScaled = true
+    Fps.Text = "0"
+
+    Ping.Parent = ScreenGui
+    Ping.BackgroundTransparency = 1
+    Ping.Size = UDim2.new(0, 120, 0, 25)
+    Ping.Font = Enum.Font.SourceSans
+    Ping.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Ping.TextScaled = true
+    Ping.Text = "0"
+
+    applyPosition(Fps, Ping, uiPosition)
+
+    local RunService = game:GetService("RunService")
+    local Stats = game:GetService("Stats")
     local lastFPS = -1
     local lastPing = -1
-    local lastFpsColor = nil
-    local lastPingColor = nil
     local lastPingUpdate = 0
     local pingInterval = 0.5
-
-    local fpsCap = getFpsCap()
     local connection
 
-    connection = Services.RunService.RenderStepped:Connect(function(frame)
-        if not ScreenGui.Parent then
-            if connection then connection:Disconnect() connection = nil end
+    connection = RunService.RenderStepped:Connect(function(frame)
+        if not _G.FpsPingGui or not _G.FpsPingGui.Parent then
+            if connection then connection:Disconnect() end
             return
         end
 
@@ -2190,27 +2016,26 @@ local function createFpsPingGui()
         if fps ~= lastFPS then
             lastFPS = fps
             Fps.Text = tostring(fps)
-        end
-        local fpsColor = statColorsEnabled and getFpsColor(fps, fpsCap) or STAT_PLAIN
-        if fpsColor ~= lastFpsColor then
-            lastFpsColor = fpsColor
-            Fps.TextColor3 = fpsColor
+            if statColorsEnabled then
+                Fps.TextColor3 = getFpsColor(fps)
+            else
+                Fps.TextColor3 = Color3.fromRGB(255, 255, 255)
+            end
         end
 
         local now = os.clock()
         if now - lastPingUpdate >= pingInterval then
             lastPingUpdate = now
-            fpsCap = getFpsCap()
             local pingValue = Stats.Network.ServerStatsItem["Data Ping"]:GetValueString()
             local rawPing = tonumber(pingValue:match("%-?%d+")) or 0
             if rawPing ~= lastPing then
                 lastPing = rawPing
                 Ping.Text = tostring(rawPing)
-            end
-            local pingColor = statColorsEnabled and getPingColor(rawPing) or STAT_PLAIN
-            if pingColor ~= lastPingColor then
-                lastPingColor = pingColor
-                Ping.TextColor3 = pingColor
+                if statColorsEnabled then
+                    Ping.TextColor3 = getPingColor(rawPing)
+                else
+                    Ping.TextColor3 = Color3.fromRGB(255, 255, 255)
+                end
             end
         end
     end)
@@ -2231,15 +2056,6 @@ fps_ping_section:AddToggle("Enable Monitor UI", function(bool)
     end
 end)
 
-RootMaid:GiveTask(function()
-    if _G.FpsPingGui then
-        _G.FpsPingGui:Destroy()
-        _G.FpsPingGui = nil
-        _G.FpsLabel = nil
-        _G.PingLabel = nil
-    end
-end)
-
 fps_ping_section:AddToggle("Enable Statistic Colors", function(bool)
     statColorsEnabled = bool
 end)
@@ -2255,148 +2071,11 @@ fps_ping_section:AddDropdown("UI Position", {
 end)
 
 local fpsBoostEnabled = false
-local fpsBoostActive = false
-local FpsBoostMaid = nil
-
-local fpsBoostState = setmetatable({}, {__mode = "ks"})
-local fpsBoostScalars = nil
-
-local function fpsBoostSet(obj, prop, value)
-    obj[prop] = value
-end
-
-local function fpsBoostGet(obj, prop)
-    return obj[prop]
-end
-
-local function fpsRemember(obj, prop)
-    local st = fpsBoostState[obj]
-    if not st then
-        st = {}
-        fpsBoostState[obj] = st
-    end
-    if st[prop] == nil then
-
-        local ok, current = pcall(fpsBoostGet, obj, prop)
-        if ok then st[prop] = current end
-    end
-end
-
-local function fpsSetTracked(obj, prop, value)
-    fpsRemember(obj, prop)
-    pcall(fpsBoostSet, obj, prop, value)
-end
-
-local function isLightingEffect(obj)
-    return obj:IsA("PostEffect") or obj:IsA("Sky") or obj:IsA("Atmosphere")
-end
-
-local function dgMeshPart(obj)
-    fpsSetTracked(obj, "CastShadow", false)
-    fpsSetTracked(obj, "RenderFidelity", Enum.RenderFidelity.Disabled)
-    fpsSetTracked(obj, "LODFactor", 0)
-end
-
-local function dgBasePart(obj)
-    fpsSetTracked(obj, "CastShadow", false)
-end
-
-local function dgSpecialMesh(obj)
-    fpsSetTracked(obj, "LOD", Enum.MeshPartDetailLevel.Disabled)
-end
-
-local function dgParticleEmitter(obj)
-    fpsSetTracked(obj, "Enabled", false)
-    fpsSetTracked(obj, "Rate", 0)
-end
-
-local function dgEnabledOff(obj)
-    fpsSetTracked(obj, "Enabled", false)
-end
-
-local function dgExplosion(obj)
-    fpsSetTracked(obj, "BlastPressure", 0)
-end
-
-local function dgSelectionBox(obj)
-    fpsSetTracked(obj, "Visible", false)
-end
-
-local function dgTransparent(obj)
-    fpsSetTracked(obj, "Transparency", 1)
-end
-
-local function dgSkyDetach(obj)
-    fpsSetTracked(obj, "Parent", nil)
-end
-
-local degradeByClass = {}
-
-local function resolveDegrade(obj)
-    if obj:IsA("MeshPart") then return dgMeshPart
-    elseif obj:IsA("BasePart") then return dgBasePart
-    elseif obj:IsA("SpecialMesh") then return dgSpecialMesh
-    elseif obj:IsA("ParticleEmitter") then return dgParticleEmitter
-    elseif obj:IsA("Trail") then return dgEnabledOff
-    elseif obj:IsA("Smoke") then return dgEnabledOff
-    elseif obj:IsA("Fire") then return dgEnabledOff
-    elseif obj:IsA("Sparkles") then return dgEnabledOff
-    elseif obj:IsA("Explosion") then return dgExplosion
-    elseif obj:IsA("SelectionBox") then return dgSelectionBox
-    elseif obj:IsA("BillboardGui") then return dgEnabledOff
-    elseif obj:IsA("SurfaceGui") then return dgEnabledOff
-    elseif obj:IsA("Decal") then return dgTransparent
-    elseif obj:IsA("Texture") then return dgTransparent
-    elseif obj:IsA("PointLight") or obj:IsA("SpotLight") or obj:IsA("SurfaceLight") then return dgEnabledOff
-    elseif obj:IsA("Sky") then return dgSkyDetach
-    end
-    return false
-end
-
-local function degradePart(obj)
-    local cn = obj.ClassName
-    local h = degradeByClass[cn]
-    if h == nil then
-        h = resolveDegrade(obj)
-        degradeByClass[cn] = h
-    end
-    if h then h(obj) end
-end
-local function degradePartDeferred(obj)
-    if not fpsBoostActive then return end
-    degradePart(obj)
-end
 
 local function applyFpsBoost()
-    if fpsBoostActive then return end
-    if FpsBoostMaid then FpsBoostMaid:DoCleaning() FpsBoostMaid = nil end
-    FpsBoostMaid = Maid.new()
-    fpsBoostActive = true
-
-    local Lighting = Services.Lighting
-    local localPlayer = LocalPlayer
-    local Terrain = workspace.Terrain
-    local renderSettings = settings().Rendering
-
-    fpsBoostScalars = {
-        Lighting = Lighting,
-        Terrain = Terrain,
-        Rendering = renderSettings,
-        GlobalShadows = Lighting.GlobalShadows,
-        FogEnd = Lighting.FogEnd,
-        FogStart = Lighting.FogStart,
-        Brightness = Lighting.Brightness,
-        Ambient = Lighting.Ambient,
-        OutdoorAmbient = Lighting.OutdoorAmbient,
-        ClockTime = Lighting.ClockTime,
-        QualityLevel = renderSettings.QualityLevel,
-        MeshPartDetailLevel = renderSettings.MeshPartDetailLevel,
-        WaterWaveSize = Terrain.WaterWaveSize,
-        WaterWaveSpeed = Terrain.WaterWaveSpeed,
-        Decoration = Terrain.Decoration,
-        WaterReflectance = Terrain.WaterReflectance,
-        WaterTransparency = Terrain.WaterTransparency
-    }
+    local Lighting = game:GetService("Lighting")
+    local Players = game:GetService("Players")
+    local localPlayer = Players.LocalPlayer
 
     Lighting.GlobalShadows = false
     Lighting.FogEnd = 100000
@@ -2406,110 +2085,139 @@ local function applyFpsBoost()
     Lighting.OutdoorAmbient = Color3.fromRGB(178, 178, 178)
     Lighting.ClockTime = 14
 
-    for _, effect in Lighting:GetChildren() do
-        if isLightingEffect(effect) then
-            fpsSetTracked(effect, "Enabled", false)
+    for _, effect in ipairs(Lighting:GetChildren()) do
+        if effect:IsA("PostEffect") or effect:IsA("Sky") or effect:IsA("Atmosphere") then
+            effect.Enabled = false
         end
     end
 
-    renderSettings.QualityLevel = Enum.QualityLevel.Level01
-    renderSettings.MeshPartDetailLevel = Enum.MeshPartDetailLevel.Disabled
+    settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+    settings().Rendering.MeshPartDetailLevel = Enum.MeshPartDetailLevel.Disabled
 
-    Terrain.WaterWaveSize = 0
-    Terrain.WaterWaveSpeed = 0
-    Terrain.Decoration = false
-    Terrain.WaterReflectance = 0
-    Terrain.WaterTransparency = 0
+    workspace.Terrain.WaterWaveSize = 0
+    workspace.Terrain.WaterWaveSpeed = 0
+    workspace.Terrain.Decoration = false
+    workspace.Terrain.WaterReflectance = 0
+    workspace.Terrain.WaterTransparency = 0
 
     if localPlayer and localPlayer.Character then
-        for _, obj in localPlayer.Character:GetDescendants() do
+        for _, obj in ipairs(localPlayer.Character:GetDescendants()) do
             if obj:IsA("Accessory") or obj:IsA("Hat") then
-                for _, part in obj:GetDescendants() do
+                for _, part in ipairs(obj:GetDescendants()) do
                     if part:IsA("BasePart") then
-                        fpsSetTracked(part, "CastShadow", false)
+                        part.CastShadow = false
                     end
                 end
             end
         end
     end
 
-    FpsBoostMaid:GiveTask(workspace.DescendantAdded:Connect(function(obj)
-        task.defer(degradePartDeferred, obj)
-    end))
-
-    FpsBoostMaid:GiveTask(Lighting.DescendantAdded:Connect(function(obj)
-        if fpsBoostActive and isLightingEffect(obj) then
-            fpsSetTracked(obj, "Enabled", false)
+    local function degradePart(obj)
+        if obj:IsA("BasePart") then
+            obj.CastShadow = false
+            obj.RenderFidelity = Enum.RenderFidelity.Disabled
+            obj.LODFactor = 0
+        elseif obj:IsA("MeshPart") then
+            obj.CastShadow = false
+            obj.RenderFidelity = Enum.RenderFidelity.Disabled
+        elseif obj:IsA("SpecialMesh") then
+            obj.LOD = Enum.MeshPartDetailLevel.Disabled
+        elseif obj:IsA("ParticleEmitter") then
+            obj.Enabled = false
+            obj.Rate = 0
+        elseif obj:IsA("Trail") then
+            obj.Enabled = false
+        elseif obj:IsA("Smoke") then
+            obj.Enabled = false
+        elseif obj:IsA("Fire") then
+            obj.Enabled = false
+        elseif obj:IsA("Sparkles") then
+            obj.Enabled = false
+        elseif obj:IsA("Explosion") then
+            obj.BlastPressure = 0
+        elseif obj:IsA("SelectionBox") then
+            obj.Visible = false
+        elseif obj:IsA("BillboardGui") then
+            obj.Enabled = false
+        elseif obj:IsA("SurfaceGui") then
+            obj.Enabled = false
+        elseif obj:IsA("Decal") then
+            obj.Transparency = 1
+        elseif obj:IsA("Texture") then
+            obj.Transparency = 1
+        elseif obj:IsA("PointLight") or obj:IsA("SpotLight") or obj:IsA("SurfaceLight") then
+            obj.Enabled = false
+        elseif obj:IsA("Sky") then
+            obj.Parent = nil
         end
-    end))
-
-    if localPlayer then
-        FpsBoostMaid:GiveTask(localPlayer.CharacterAdded:Connect(function(char)
-            if not fpsBoostActive then return end
-            for _, obj in char:GetDescendants() do
-                degradePart(obj)
-            end
-
-            FpsBoostMaid:GiveTask(char.DescendantAdded:Connect(function(obj)
-                task.defer(degradePartDeferred, obj)
-            end))
-        end))
     end
 
-    local all = workspace:GetDescendants()
-    local total = #all
-    local i = 1
-    while i <= total do
-        if not fpsBoostActive then return end
-        local stop = math.min(i + 499, total)
-        for j = i, stop do
-            degradePart(all[j])
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        degradePart(obj)
+    end
+
+    _G.FpsBoostConnection = workspace.DescendantAdded:Connect(function(obj)
+        task.defer(degradePart, obj)
+    end)
+
+    _G.FpsBoostLightingConnection = Lighting.DescendantAdded:Connect(function(obj)
+        if obj:IsA("PostEffect") or obj:IsA("Sky") or obj:IsA("Atmosphere") then
+            obj.Enabled = false
         end
-        i = stop + 1
-        task.wait()
+    end)
+
+    if localPlayer then
+        _G.FpsBoostCharConnection = localPlayer.CharacterAdded:Connect(function(char)
+            for _, obj in ipairs(char:GetDescendants()) do
+                degradePart(obj)
+            end
+            char.DescendantAdded:Connect(function(obj)
+                task.defer(degradePart, obj)
+            end)
+        end)
     end
 end
 
 local function removeFpsBoost()
-    if FpsBoostMaid then FpsBoostMaid:DoCleaning() FpsBoostMaid = nil end
-    if not fpsBoostActive then return end
-    fpsBoostActive = false
+    local Lighting = game:GetService("Lighting")
 
-    local scalars = fpsBoostScalars
-    if scalars then
-        local Lighting = scalars.Lighting
-        Lighting.GlobalShadows = scalars.GlobalShadows
-        Lighting.FogEnd = scalars.FogEnd
-        Lighting.FogStart = scalars.FogStart
-        Lighting.Brightness = scalars.Brightness
-        Lighting.Ambient = scalars.Ambient
-        Lighting.OutdoorAmbient = scalars.OutdoorAmbient
-        Lighting.ClockTime = scalars.ClockTime
+    Lighting.GlobalShadows = true
+    Lighting.FogEnd = 100000
+    Lighting.FogStart = 0
+    Lighting.Brightness = 2
+    Lighting.Ambient = Color3.fromRGB(70, 70, 70)
+    Lighting.OutdoorAmbient = Color3.fromRGB(128, 128, 128)
 
-        local renderSettings = scalars.Rendering
-        renderSettings.QualityLevel = scalars.QualityLevel
-        renderSettings.MeshPartDetailLevel = scalars.MeshPartDetailLevel
-
-        local Terrain = scalars.Terrain
-        Terrain.WaterWaveSize = scalars.WaterWaveSize
-        Terrain.WaterWaveSpeed = scalars.WaterWaveSpeed
-        Terrain.Decoration = scalars.Decoration
-        Terrain.WaterReflectance = scalars.WaterReflectance
-        Terrain.WaterTransparency = scalars.WaterTransparency
-        fpsBoostScalars = nil
-    end
-
-    for obj, st in fpsBoostState do
-        for prop, value in st do
-            pcall(fpsBoostSet, obj, prop, value)
+    for _, effect in ipairs(Lighting:GetChildren()) do
+        if effect:IsA("PostEffect") or effect:IsA("Sky") or effect:IsA("Atmosphere") then
+            effect.Enabled = true
         end
     end
-    table.clear(fpsBoostState)
-end
 
-RootMaid:GiveTask(function()
-    if fpsBoostActive then removeFpsBoost() end
-end)
+    settings().Rendering.QualityLevel = Enum.QualityLevel.Automatic
+    settings().Rendering.MeshPartDetailLevel = Enum.MeshPartDetailLevel.Full
+
+    workspace.Terrain.WaterWaveSize = 0.15
+    workspace.Terrain.WaterWaveSpeed = 10
+    workspace.Terrain.Decoration = true
+    workspace.Terrain.WaterReflectance = 1
+    workspace.Terrain.WaterTransparency = 0
+
+    if _G.FpsBoostConnection then
+        _G.FpsBoostConnection:Disconnect()
+        _G.FpsBoostConnection = nil
+    end
+
+    if _G.FpsBoostLightingConnection then
+        _G.FpsBoostLightingConnection:Disconnect()
+        _G.FpsBoostLightingConnection = nil
+    end
+
+    if _G.FpsBoostCharConnection then
+        _G.FpsBoostCharConnection:Disconnect()
+        _G.FpsBoostCharConnection = nil
+    end
+end
 
 local ultra_fps_section = ataos:AddSection("Light FPS Boost")
 
@@ -2525,40 +2233,33 @@ end)
 do
     local cameraSection = ataos:AddSection("Camera Stretch")
     cameraSection:AddLabel("Default values for horizontal and vertical are 0.80")
-
+    
     local stretchHorizontal = 0.80
     local stretchVertical = 0.80
     local cameraStretchConnection = nil
     local cameraStretchEnabled = false
-
-    local stretchCF = CFrame.new(0, 0, 0, stretchHorizontal, 0, 0, 0, stretchVertical, 0, 0, 0, 1)
-
-    local function cameraStretchStep()
-        local Camera = workspace.CurrentCamera
-        if Camera then
-            Camera.CFrame = Camera.CFrame * stretchCF
-        end
-    end
-
+    
     local function applyCameraStretch()
-        if cameraStretchConnection then
-            cameraStretchConnection:Disconnect()
-            cameraStretchConnection = nil
+        if cameraStretchConnection then 
+            cameraStretchConnection:Disconnect() 
+            cameraStretchConnection = nil 
         end
-
+        
         if not cameraStretchEnabled then return end
-
-        stretchCF = CFrame.new(0, 0, 0, stretchHorizontal, 0, 0, 0, stretchVertical, 0, 0, 0, 1)
-        cameraStretchConnection = Services.RunService.RenderStepped:Connect(cameraStretchStep)
+        
+        cameraStretchConnection = game:GetService("RunService").RenderStepped:Connect(function()
+            local Camera = workspace.CurrentCamera
+            Camera.CFrame = Camera.CFrame * CFrame.new(0, 0, 0, stretchHorizontal, 0, 0, 0, stretchVertical, 0, 0, 0, 1)
+        end)
     end
-
+    
     local function stopCameraStretch()
         if cameraStretchConnection then
             cameraStretchConnection:Disconnect()
             cameraStretchConnection = nil
         end
     end
-
+    
     cameraSection:AddToggle("Enable Camera Stretch", function(state)
         cameraStretchEnabled = state
         if state then
@@ -2567,7 +2268,7 @@ do
             stopCameraStretch()
         end
     end)
-
+    
     cameraSection:AddTextBox("Horizontal Stretch", function(text)
         local num = tonumber(text)
         if num then
@@ -2577,7 +2278,7 @@ do
             end
         end
     end, "0.80")
-
+    
     cameraSection:AddTextBox("Vertical Stretch", function(text)
         local num = tonumber(text)
         if num then
@@ -2587,110 +2288,41 @@ do
             end
         end
     end, "0.80")
-
-    RootMaid:GiveTasks(
-        LocalPlayer.CharacterRemoving:Connect(function()
-            stopCameraStretch()
-        end),
-        LocalPlayer.CharacterAdded:Connect(function()
-            task.wait(0.5)
-            if cameraStretchEnabled then
-                applyCameraStretch()
-            end
-        end),
-        function() stopCameraStretch() end
-    )
+    
+    LocalPlayer.CharacterRemoving:Connect(function()
+        stopCameraStretch()
+    end)
+    
+    LocalPlayer.CharacterAdded:Connect(function()
+        task.wait(0.5)
+        if cameraStretchEnabled then
+            applyCameraStretch()
+        end
+    end)
 end
 
-local VirtualUser = getfserv("VirtualUser")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+local VirtualUser = game:GetService("VirtualUser")
 local trueAntiFlingEnabled = false
 local trueAntiAfkEnabled = false
 local trueAntiFlingConnection = nil
 local trueAntiAfkConnection = nil
-
-local afParts = setmetatable({}, {__mode = "ks"})
-local afCharMaids = setmetatable({}, {__mode = "ks"})
-local afMaid = nil
-
-local function afUntrack(char)
-    if not char then return end
-    local m = afCharMaids[char]
-    if m then m:Destroy() end
-    afCharMaids[char] = nil
-    afParts[char] = nil
-end
-
-local function afTrack(char)
-    if not char or afParts[char] then return end
-    if not afMaid or afMaid._destroyed then return end
-
-    local list = table.create(24)
-    local n = 0
-    for _, v in char:GetDescendants() do
-        if v:IsA("BasePart") then
-            n += 1
-            list[n] = v
-        end
-    end
-    afParts[char] = list
-
-    local charMaid = Maid.new()
-    afCharMaids[char] = charMaid
-    charMaid:GiveTasks(
-        char.DescendantAdded:Connect(function(v)
-            if v:IsA("BasePart") then
-                local l = afParts[char]
-                if l then l[#l + 1] = v end
-            end
-        end),
-        char.DescendantRemoving:Connect(function(v)
-            local l = afParts[char]
-            if l then
-                local i = table.find(l, v)
-                if i then table.remove(l, i) end
-            end
-        end)
-    )
-end
-
-local function afWatchPlayer(p)
-    if p == LocalPlayer then return end
-    if not afMaid or afMaid._destroyed then return end
-    afTrack(p.Character)
-    afMaid:GiveTasks(
-        p.CharacterAdded:Connect(afTrack),
-        p.CharacterRemoving:Connect(afUntrack)
-    )
-end
 
 local function enableTrueAntiFling()
     if trueAntiFlingConnection then
         trueAntiFlingConnection:Disconnect()
         trueAntiFlingConnection = nil
     end
-    if afMaid then afMaid:DoCleaning() end
-
-    afMaid = Maid.new()
-    local thisMaid = afMaid
-    afMaid:GiveTask(function()
-        for c in afCharMaids do afUntrack(c) end
-        table.clear(afParts)
-        table.clear(afCharMaids)
-    end)
-
-    for _, player in Services.Players:GetPlayers() do
-        afWatchPlayer(player)
-    end
-    afMaid:GiveTask(Services.Players.PlayerAdded:Connect(afWatchPlayer))
-    afMaid:GiveTask(Services.Players.PlayerRemoving:Connect(function(p)
-        afUntrack(p.Character)
-    end))
-
-    trueAntiFlingConnection = Services.RunService.Stepped:Connect(function()
-        if thisMaid._destroyed then return end
-        for _, list in afParts do
-            for _, v in list do
-                if v.CanCollide then v.CanCollide = false end
+    trueAntiFlingConnection = RunService.Stepped:Connect(function()
+        for _, player in pairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character then
+                for _, v in pairs(player.Character:GetDescendants()) do
+                    if v:IsA("BasePart") then
+                        v.CanCollide = false
+                    end
+                end
             end
         end
     end)
@@ -2701,10 +2333,7 @@ local function disableTrueAntiFling()
         trueAntiFlingConnection:Disconnect()
         trueAntiFlingConnection = nil
     end
-    if afMaid then afMaid:DoCleaning() afMaid = nil end
 end
-
-local AFK_CLICK_POS = Vector2.new()
 
 local function enableTrueAntiAfk()
     if trueAntiAfkConnection then
@@ -2713,7 +2342,7 @@ local function enableTrueAntiAfk()
     end
     trueAntiAfkConnection = LocalPlayer.Idled:Connect(function()
         VirtualUser:CaptureController()
-        VirtualUser:ClickButton2(AFK_CLICK_POS)
+        VirtualUser:ClickButton2(Vector2.new())
     end)
 end
 
@@ -2745,9 +2374,8 @@ end)
 local creditsSection = ataos:AddSection("Credits")
 creditsSection:AddParagraph("@lzzzx", "Made this plugin, if you have requests feel free to ask.")
 
-shared.Notify("ATAOs Successfully Loaded!", 2)
+shared.Notify("ATAOs Successfully Loaded!", 1)
 
 RootMaid:GiveTask(function()
-    disableTrueAntiFling()
-    disableTrueAntiAfk()
+    
 end)
